@@ -59,3 +59,4 @@ budgetIncidentSchema.index({ agentId: 1, status: 1 });
 
 const BudgetIncident = mongoose.model('BudgetIncident', budgetIncidentSchema);
 module.exports = BudgetIncident;
+

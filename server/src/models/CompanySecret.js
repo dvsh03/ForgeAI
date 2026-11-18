@@ -60,3 +60,4 @@ companySecretSchema.methods.toJSON = function () {
 
 const CompanySecret = mongoose.model('CompanySecret', companySecretSchema);
 module.exports = CompanySecret;
+

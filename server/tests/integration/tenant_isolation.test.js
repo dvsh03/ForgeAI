@@ -116,3 +116,4 @@ describe('Multi-Tenant Isolation Security Verification (Day 7)', () => {
     expect(resB.body.companies[0]._id.toString()).toBe(companyBId.toString());
   });
 });
+

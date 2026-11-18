@@ -145,3 +145,4 @@ issueSchema.index({ lockedByRunId: 1, lockExpiresAt: 1 });
 
 const Issue = mongoose.model('Issue', issueSchema);
 module.exports = Issue;
+

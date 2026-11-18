@@ -24,3 +24,4 @@ const allocateIssueKey = async (companyId) => {
 module.exports = {
   allocateIssueKey,
 };
+

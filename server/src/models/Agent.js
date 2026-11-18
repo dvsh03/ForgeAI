@@ -82,3 +82,4 @@ agentSchema.index({ companyId: 1, reportsTo: 1 });
 
 const Agent = mongoose.model('Agent', agentSchema);
 module.exports = Agent;
+

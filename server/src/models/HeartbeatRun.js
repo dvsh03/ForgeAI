@@ -107,3 +107,4 @@ heartbeatRunSchema.index({ status: 1, lockExpiresAt: 1 });
 
 const HeartbeatRun = mongoose.model('HeartbeatRun', heartbeatRunSchema);
 module.exports = HeartbeatRun;
+

@@ -90,3 +90,4 @@ describe('Auth Endpoints (Integration Tests)', () => {
     expect(badRes.status).toBe(401);
   });
 });
+

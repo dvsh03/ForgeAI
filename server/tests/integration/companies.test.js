@@ -133,3 +133,4 @@ describe('Companies & Demo Seeder Endpoints (Integration Tests)', () => {
     expect(res.text).toContain('Timestamp,ActorType,ActorName,Action,EntityType,EntityId,Details,IP');
   });
 });
+

@@ -77,3 +77,4 @@ Render Free web services spin down after 15 minutes of inactivity. To keep the A
 - [x] Cloudinary signed upload endpoint is operational.
 - [x] JSON Company Export automatically scrubs all secret keys.
 - [x] Audit log captures all mutating operations with RFC-4180 CSV export.
+

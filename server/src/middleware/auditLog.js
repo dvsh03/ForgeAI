@@ -96,3 +96,4 @@ module.exports = {
   auditLogMiddleware,
   recordActivity,
 };
+

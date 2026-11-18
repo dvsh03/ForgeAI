@@ -62,3 +62,4 @@ wakeupQueueSchema.index({ companyId: 1, status: 1, createdAt: 1 });
 
 const WakeupQueue = mongoose.model('WakeupQueue', wakeupQueueSchema);
 module.exports = WakeupQueue;
+

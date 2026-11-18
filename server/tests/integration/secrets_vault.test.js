@@ -102,3 +102,4 @@ describe('Secrets Vault Endpoints (Integration Tests)', () => {
     expect(listRes.body.secrets.length).toBe(0);
   });
 });
+

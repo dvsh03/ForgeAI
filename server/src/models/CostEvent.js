@@ -59,3 +59,4 @@ costEventSchema.index({ agentId: 1, createdAt: -1 });
 
 const CostEvent = mongoose.model('CostEvent', costEventSchema);
 module.exports = CostEvent;
+

@@ -53,3 +53,4 @@ approvalSchema.index({ companyId: 1, status: 1 });
 
 const Approval = mongoose.model('Approval', approvalSchema);
 module.exports = Approval;
+
