@@ -14,6 +14,12 @@ const agentSchema = new mongoose.Schema(
       trim: true,
       maxlength: [100, 'Agent name cannot exceed 100 characters'],
     },
+    title: {
+      type: String,
+      default: '',
+      trim: true,
+      maxlength: [100, 'Agent title cannot exceed 100 characters'],
+    },
     role: {
       type: String,
       required: [true, 'Agent role is required'],
@@ -45,6 +51,15 @@ const agentSchema = new mongoose.Schema(
       type: String,
       default: '',
       trim: true,
+    },
+    heartbeatCron: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    autoHeartbeatEnabled: {
+      type: Boolean,
+      default: false,
     },
     status: {
       type: String,

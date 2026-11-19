@@ -264,16 +264,27 @@ async function apiFetch<T>(
   path: string,
   init: RequestInit = {},
 ): Promise<T> {
+  let response: Response | undefined;
   try {
-    const res = await fetch(`${API_BASE}${path}`, {
+    response = await fetch(`${API_BASE}${path}`, {
       ...init,
       headers: authHeaders((init.headers as Record<string, string>) ?? {}),
     });
-    if (res.ok) {
-      return (await res.json()) as T;
-    }
   } catch {
-    // Backend offline / connecting to free tier cold start -> fall through to mock store!
+    // Backend offline / connecting to free tier cold start -> fall through to mock store.
+  }
+
+  if (response?.ok) {
+    return (await response.json()) as T;
+  }
+  if (response && !(
+    !getToken() && (response.status === 401 || response.status === 404)
+  )) {
+    const errorBody = await response.json().catch(() => ({}));
+    throw new ApiError(
+      response.status,
+      typeof errorBody.error === 'string' ? errorBody.error : `Request failed with status ${response.status}`,
+    );
   }
 
   // ── Offline Demo Mock Router ──────────────────────────────
@@ -360,9 +371,210 @@ async function apiFetch<T>(
     return newComment as unknown as T;
   }
 
+  // Agent config revision history
+  if (/^\/api\/agents\/[^/]+\/revisions/.test(path) && (!init.method || init.method === 'GET')) {
+    return [
+      {
+        _id: 'rev_initial',
+        changedKeys: ['instructionsMarkdown', 'adapterType'],
+        createdAt: new Date(Date.now() - 86400000).toISOString(),
+      },
+    ] as unknown as T;
+  }
+
+  // Agent actions
+  if (/^\/api\/agents\/[^/]+\/(pause|resume|invoke)$/.test(path) && init.method === 'POST') {
+    const [, , , agentId, action] = path.split('/');
+    const agent = DEMO_AGENTS.find((item) => item._id === agentId);
+    if (action === 'invoke') {
+      return { status: 'queued', wakeupId: `wakeup_${Date.now()}` } as unknown as T;
+    }
+    if (agent) {
+      agent.status = action === 'pause' ? 'paused' : 'idle';
+      agent.updatedAt = new Date().toISOString();
+      return { agent } as unknown as T;
+    }
+    return {} as T;
+  }
+
+  // Agent config rollback
+  if (/^\/api\/agents\/[^/]+\/revisions\/[^/]+\/rollback$/.test(path) && init.method === 'POST') {
+    const agentId = path.split('/')[3];
+    const agent = DEMO_AGENTS.find((item) => item._id === agentId) || DEMO_AGENTS[0];
+    return { ...agent, updatedAt: new Date().toISOString() } as unknown as T;
+  }
+
+  // Agent config updates
+  if (/^\/api\/agents\/[^/]+$/.test(path) && init.method === 'PATCH') {
+    const agentId = path.split('/')[3];
+    const patch = JSON.parse(String(init.body || '{}'));
+    const agent = DEMO_AGENTS.find((item) => item._id === agentId);
+    const { heartbeatCron, ...agentPatch } = patch;
+    const updated = {
+      ...(agent || DEMO_AGENTS[0]),
+      ...agentPatch,
+      adapterConfig: {
+        ...(agent || DEMO_AGENTS[0]).adapterConfig,
+        ...(heartbeatCron !== undefined ? { heartbeatCron } : {}),
+      },
+      updatedAt: new Date().toISOString(),
+    };
+    const index = DEMO_AGENTS.findIndex((item) => item._id === agentId);
+    if (index >= 0) DEMO_AGENTS[index] = updated;
+    return updated as unknown as T;
+  }
+
+  // Hire an agent in the offline demo workspace
+  if (/^\/api\/companies\/[^/]+\/agents$/.test(path) && init.method === 'POST') {
+    const body = JSON.parse(String(init.body || '{}'));
+    const now = new Date().toISOString();
+    const agent: Agent = {
+      _id: `agent_${Date.now()}`,
+      companyId: path.split('/')[3],
+      name: body.name,
+      role: body.role,
+      title: body.title,
+      reportsTo: body.reportsTo || null,
+      adapterType: body.adapterType || 'groq_llm',
+      adapterConfig: { model: body.model || 'llama-3.3-70b-versatile' },
+      status: 'idle',
+      budgetMonthlyCents: Number(body.budgetMonthlyCents) || 0,
+      spentMonthlyMicrocents: 0,
+      instructionsMarkdown: '',
+      createdAt: now,
+      updatedAt: now,
+    };
+    DEMO_AGENTS.push(agent);
+    return { agent } as unknown as T;
+  }
+
   // Agents listing
-  if (path.includes('/agents')) {
+  if (path.includes('/agents') && (!init.method || init.method === 'GET')) {
     return { agents: DEMO_AGENTS, tree: DEMO_AGENTS } as unknown as T;
+  }
+
+  // Approvals listing and decisions
+  if (path.includes('/approvals') && (!init.method || init.method === 'GET')) {
+    return {
+      approvals: [
+        {
+          _id: 'approval_hire_1',
+          companyId: 'demo_company_1',
+          type: 'hire_agent',
+          requestedByAgentId: 'agent_cto',
+          payload: { name: 'Mira', role: 'researcher', title: 'Competitive Research Analyst', budgetMonthlyCents: 250 },
+          status: 'pending',
+          createdAt: new Date(Date.now() - 3600000).toISOString(),
+          updatedAt: new Date().toISOString(),
+        },
+        {
+          _id: 'approval_plan_1',
+          companyId: 'demo_company_1',
+          type: 'strategy_plan',
+          requestedByAgentId: 'agent_ceo',
+          payload: { objective: 'Prepare Q4 developer launch campaign', targetDate: '2026-11-30', estimatedBudgetCents: 150 },
+          status: 'pending',
+          createdAt: new Date(Date.now() - 7200000).toISOString(),
+          updatedAt: new Date().toISOString(),
+        },
+      ],
+    } as unknown as T;
+  }
+  if (/^\/api\/approvals\/[^/]+\/decide$/.test(path) && init.method === 'POST') {
+    const body = JSON.parse(String(init.body || '{}'));
+    return { status: body.decision, decisionNote: body.decisionNote || '' } as unknown as T;
+  }
+
+  // Company settings
+  if (/^\/api\/companies\/[^/]+$/.test(path) && (!init.method || init.method === 'GET')) {
+    return {
+      company: {
+        _id: 'demo_company_1',
+        name: 'Acme AI',
+        description: 'Autonomous AI workforce',
+        issuePrefix: 'ACM',
+        issueCounter: mockIssues.length,
+        budgetMonthlyCents: 500,
+        spentMonthlyMicrocents: 415000,
+        requireHireApproval: true,
+        ownerUserId: 'user_1',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+    } as unknown as T;
+  }
+  if (/^\/api\/companies\/[^/]+$/.test(path) && init.method === 'PATCH') {
+    const patch = JSON.parse(String(init.body || '{}'));
+    return {
+      company: {
+        _id: 'demo_company_1',
+        name: 'Acme AI',
+        description: 'Autonomous AI workforce',
+        issuePrefix: 'ACM',
+        issueCounter: mockIssues.length,
+        budgetMonthlyCents: 500,
+        spentMonthlyMicrocents: 415000,
+        requireHireApproval: true,
+        ownerUserId: 'user_1',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        ...patch,
+      },
+    } as unknown as T;
+  }
+
+  // Encrypted vault mock routes
+  if (path.includes('/secrets') && (!init.method || init.method === 'GET')) {
+    return {
+      secrets: [
+        { _id: 'secret_groq', key: 'GROQ_API_KEY', maskedPreview: 'gsk_••••8f1a', createdAt: new Date().toISOString() },
+      ],
+    } as unknown as T;
+  }
+  if (path.includes('/secrets') && init.method === 'POST') {
+    const body = JSON.parse(String(init.body || '{}'));
+    const value = String(body.value || '');
+    const preview = value.length > 8 ? `${value.slice(0, 4)}••••${value.slice(-4)}` : '••••••••';
+    return {
+      secret: { _id: `secret_${Date.now()}`, key: String(body.key || 'API_KEY'), maskedPreview: preview, createdAt: new Date().toISOString() },
+    } as unknown as T;
+  }
+  if (path.includes('/secrets/') && init.method === 'DELETE') {
+    return { message: 'Secret deleted' } as unknown as T;
+  }
+
+  if (/\/budget-incidents\/[^/]+\/resolve$/.test(path) && init.method === 'POST') {
+    const body = JSON.parse(String(init.body || '{}'));
+    return { incident: { status: 'resolved', ...body }, agent: {} } as unknown as T;
+  }
+
+  if (/^\/api\/companies\/[^/]+\/budget-incidents$/.test(path) && (!init.method || init.method === 'GET')) {
+    return {
+      incidents: [
+        {
+          _id: 'incident_demo_1',
+          companyId: 'demo_company_1',
+          agentId: 'agent_ceo',
+          agentName: 'Atlas (CEO)',
+          threshold: 100,
+          spentMonthlyMicrocents: 5000000,
+          budgetMonthlyCents: 500,
+          status: 'open',
+          createdAt: new Date().toISOString(),
+        },
+      ],
+    } as unknown as T;
+  }
+
+  // Demo seed and audit log
+  if (/\/seed-demo$/.test(path) && init.method === 'POST') {
+    return { company: {}, agents: DEMO_AGENTS, goals: DEMO_GOALS, issues: mockIssues } as unknown as T;
+  }
+  if (/^\/api\/companies\/[^/]+\/audit$/.test(path) && (!init.method || init.method === 'GET')) {
+    return [
+      { _id: 'log_1', actorType: 'user', actorId: 'user_1', action: 'update_company', entityType: 'Company', entityId: 'demo_company_1', details: { budgetMonthlyCents: 500 }, createdAt: new Date(Date.now() - 600000).toISOString() },
+      { _id: 'log_2', actorType: 'agent', actorId: 'agent_cto', action: 'submit_for_review', entityType: 'Issue', entityId: 'PAP-3', details: { status: 'in_review' }, createdAt: new Date(Date.now() - 1800000).toISOString() },
+    ] as unknown as T;
   }
 
   // Goals listing
@@ -479,4 +691,22 @@ export function apiPatch<T>(path: string, body?: unknown): Promise<T> {
 
 export function apiDelete<T = void>(path: string): Promise<T> {
   return apiFetch<T>(path, { method: 'DELETE' });
+}
+
+export async function apiDownload(path: string, filename: string): Promise<void> {
+  const response = await fetch(`${API_BASE}${path}`, {
+    headers: authHeaders(),
+  });
+  if (!response.ok) {
+    throw new ApiError(response.status, `Download failed with status ${response.status}`);
+  }
+  const blob = await response.blob();
+  const objectUrl = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = objectUrl;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(objectUrl);
 }

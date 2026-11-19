@@ -6,6 +6,9 @@ const authRoutes = require('./routes/auth');
 const companyRoutes = require('./routes/companies');
 const secretRoutes = require('./routes/secrets');
 const uploadRoutes = require('./routes/uploads');
+const agentRoutes = require('./routes/agents');
+const approvalRoutes = require('./routes/approvals');
+const budgetIncidentRoutes = require('./routes/budgetIncidents');
 const { auditLogMiddleware } = require('./middleware/auditLog');
 
 const app = express();
@@ -60,6 +63,9 @@ app.get('/api/health', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/companies', companyRoutes);
 app.use('/api/companies/:cid/secrets', secretRoutes);
+app.use('/api/agents', agentRoutes);
+app.use('/api/approvals', approvalRoutes);
+app.use('/api/budget-incidents', budgetIncidentRoutes);
 app.use('/api/uploads', uploadRoutes);
 
 // Catch 404 for undefined routes

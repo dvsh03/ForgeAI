@@ -7,6 +7,8 @@ const Goal = require('../models/Goal');
 const Issue = require('../models/Issue');
 const IssueComment = require('../models/IssueComment');
 const ActivityLog = require('../models/ActivityLog');
+const Approval = require('../models/Approval');
+const BudgetIncident = require('../models/BudgetIncident');
 const { authenticateJWT, requireCompanyMember } = require('../middleware/auth');
 const { recordActivity } = require('../middleware/auditLog');
 const { scrubSensitiveData } = require('../services/vault');
@@ -93,12 +95,140 @@ router.post('/', async (req, res) => {
 });
 
 /**
+ * @route   GET /api/companies/:cid/agents
+ * @desc    List agents in a company workspace
+ * @access  Private (Company Member)
+ */
+router.get('/:cid/agents', requireCompanyMember, async (req, res) => {
+  try {
+    const agents = await Agent.find({ companyId: req.company._id }).sort({ createdAt: 1 }).lean();
+    return res.status(200).json({
+      agents: agents.map((agent) => ({
+        ...agent,
+        _id: agent._id.toString(),
+        companyId: agent.companyId.toString(),
+        reportsTo: agent.reportsTo ? agent.reportsTo.toString() : null,
+        title: agent.title || '',
+        adapterType: agent.adapter,
+        adapterConfig: {
+          model: agent.model,
+          webhookUrl: agent.webhookUrl || '',
+          heartbeatCron: agent.heartbeatCron || '',
+          autoHeartbeatEnabled: Boolean(agent.autoHeartbeatEnabled),
+        },
+      })),
+    });
+  } catch (err) {
+    return res.status(500).json({ error: 'Failed to fetch company agents', details: err.message });
+  }
+});
+
+/**
  * @route   GET /api/companies/:cid
  * @desc    Get details of a specific company workspace
  * @access  Private (Company Member)
  */
 router.get('/:cid', requireCompanyMember, async (req, res) => {
   return res.status(200).json({ company: req.company });
+});
+
+/**
+ * @route   POST /api/companies/:cid/agents
+ * @desc    Hire an agent into a company workspace
+ * @access  Private (Company Member)
+ */
+router.post('/:cid/agents', requireCompanyMember, async (req, res) => {
+  try {
+    const {
+      name,
+      title,
+      role,
+      adapterType = 'groq_llm',
+      model = 'llama-3.3-70b-versatile',
+      budgetMonthlyCents = 250,
+      reportsTo = null,
+    } = req.body;
+
+    if (typeof name !== 'string' || !name.trim()) {
+      return res.status(400).json({ error: 'Agent name is required' });
+    }
+    if (typeof role !== 'string' || !role.trim()) {
+      return res.status(400).json({ error: 'Agent role is required' });
+    }
+    if (!['groq_llm', 'gemini_llm', 'http_webhook'].includes(adapterType)) {
+      return res.status(400).json({ error: 'Unsupported agent adapter' });
+    }
+    if (!Number.isFinite(budgetMonthlyCents) || budgetMonthlyCents < 0) {
+      return res.status(400).json({ error: 'Monthly budget must be a non-negative number of cents' });
+    }
+
+    if (reportsTo) {
+      const manager = await Agent.findOne({ _id: reportsTo, companyId: req.company._id });
+      if (!manager) {
+        return res.status(400).json({ error: 'Manager must belong to this company' });
+      }
+    }
+
+    const created = await Agent.create({
+      companyId: req.company._id,
+      name: name.trim(),
+      title: typeof title === 'string' ? title.trim() : '',
+      role: role.trim(),
+      reportsTo,
+      adapter: adapterType,
+      model: typeof model === 'string' && model.trim() ? model.trim() : 'llama-3.3-70b-versatile',
+      instructionsMarkdown: '',
+      budgetMonthlyCents,
+      status: 'idle',
+    });
+
+    const agent = {
+      _id: created._id,
+      companyId: created.companyId,
+      name: created.name,
+      title: created.title,
+      role: created.role,
+      reportsTo: created.reportsTo,
+      adapterType: created.adapter,
+      adapterConfig: { model: created.model },
+      status: created.status,
+      budgetMonthlyCents: created.budgetMonthlyCents,
+      spentMonthlyMicrocents: created.spentMonthlyMicrocents,
+      instructionsMarkdown: created.instructionsMarkdown,
+      createdAt: created.createdAt,
+      updatedAt: created.updatedAt,
+    };
+
+    await AgentConfigRevision.create({
+      agentId: created._id,
+      companyId: req.company._id,
+      revisionNumber: 1,
+      changedByUserId: req.user._id,
+      instructionsMarkdown: created.instructionsMarkdown,
+      adapter: created.adapter,
+      model: created.model,
+      budgetMonthlyCents: created.budgetMonthlyCents,
+      changedKeys: ['created'],
+      snapshot: created.toObject(),
+      reason: 'Agent hired',
+    });
+
+    await recordActivity({
+      companyId: req.company._id,
+      actorType: 'user',
+      actorId: req.user._id,
+      actorName: req.user.name,
+      action: 'hire_agent',
+      entityType: 'Agent',
+      entityId: created._id,
+      details: { name: created.name, role: created.role, adapter: created.adapter },
+      ip: req.ip || '',
+    });
+
+    return res.status(201).json({ agent });
+  } catch (err) {
+    return res.status(500).json({ error: 'Failed to hire agent', details: err.message });
+  }
 });
 
 /**
@@ -139,6 +269,57 @@ router.patch('/:cid', requireCompanyMember, async (req, res) => {
       entityId: req.company._id,
       details: updates,
       ip: req.ip || '',
+    });
+
+    /**
+     * @route   GET /api/companies/:cid/approvals
+     * @desc    List governance approvals for a company
+     * @access  Private (Company Member)
+     */
+    router.get('/:cid/approvals', requireCompanyMember, async (req, res) => {
+      try {
+        const approvals = await Approval.find({ companyId: req.company._id })
+          .sort({ createdAt: -1 })
+          .limit(200)
+          .populate('agentId', 'name')
+          .lean();
+        return res.status(200).json({
+          approvals: approvals.map((approval) => ({
+            ...approval,
+            _id: approval._id.toString(),
+            companyId: approval.companyId.toString(),
+            requestedByAgentId: approval.agentId?._id?.toString() || approval.agentId?.toString() || '',
+            agentId: approval.agentId?._id?.toString() || approval.agentId?.toString() || '',
+          })),
+        });
+      } catch (err) {
+        return res.status(500).json({ error: 'Failed to fetch approvals', details: err.message });
+      }
+    });
+
+    /**
+     * @route   GET /api/companies/:cid/budget-incidents
+     * @desc    List open agent budget incidents for a company
+     * @access  Private (Company Member)
+     */
+    router.get('/:cid/budget-incidents', requireCompanyMember, async (req, res) => {
+      try {
+        const incidents = await BudgetIncident.find({ companyId: req.company._id, status: 'open' })
+          .sort({ createdAt: -1 })
+          .populate('agentId', 'name')
+          .lean();
+        return res.status(200).json({
+          incidents: incidents.map((incident) => ({
+            ...incident,
+            _id: incident._id.toString(),
+            companyId: incident.companyId.toString(),
+            agentId: incident.agentId?._id?.toString() || incident.agentId?.toString() || '',
+            agentName: incident.agentId?.name || 'Agent',
+          })),
+        });
+      } catch (err) {
+        return res.status(500).json({ error: 'Failed to fetch budget incidents', details: err.message });
+      }
     });
 
     return res.status(200).json({
@@ -555,6 +736,23 @@ router.post('/import', async (req, res) => {
   } catch (err) {
     console.error('[Import Error]:', err);
     return res.status(500).json({ error: 'Failed to import company data', details: err.message });
+  }
+});
+
+/**
+ * @route   GET /api/companies/:cid/audit
+ * @desc    List the company's recent immutable activity audit entries
+ * @access  Private (Company Member)
+ */
+router.get('/:cid/audit', requireCompanyMember, async (req, res) => {
+  try {
+    const logs = await ActivityLog.find({ companyId: req.company._id })
+      .sort({ createdAt: -1 })
+      .limit(500)
+      .lean();
+    return res.status(200).json({ logs });
+  } catch (err) {
+    return res.status(500).json({ error: 'Failed to fetch audit log', details: err.message });
   }
 });
 
