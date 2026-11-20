@@ -123,140 +123,9 @@ const DEMO_GOALS: Goal[] = [
   },
 ];
 
-let mockIssues: Issue[] = [
-  {
-    _id: 'issue_1',
-    companyId: 'demo_company_1',
-    identifier: 'PAP-1',
-    title: 'Implement AES-256-GCM encrypted secrets vault',
-    description: 'Protect Groq and Gemini API keys with 12-byte IV and 16-byte auth tag. Ensure zero plaintext leaks.',
-    status: 'done',
-    priority: 'urgent',
-    goalId: 'goal_1',
-    assigneeAgentId: 'agent_cto',
-    acceptanceCriteria: [
-      { text: 'AES-256-GCM encryption with 32-byte master key', completed: true },
-      { text: 'Masked preview showing only first 4 and last 4 characters', completed: true },
-      { text: 'Keys decrypted in memory only inside adapterExecutor', completed: true },
-    ],
-    deliverables: [
-      { kind: 'link', label: 'Vault PR & Security Specs', url: 'https://github.com/paperclipai/paperclip' },
-    ],
-    lastHydratedCommentCount: 2,
-    createdAt: new Date(Date.now() - 86400000 * 2).toISOString(),
-    updatedAt: new Date(Date.now() - 86400000).toISOString(),
-  },
-  {
-    _id: 'issue_2',
-    companyId: 'demo_company_1',
-    identifier: 'PAP-2',
-    title: 'Build 5-Column Kanban Board & Task Planner Modal',
-    description: 'Construct Linear-inspired task management workspace with drag-and-drop and AI task decomposition.',
-    status: 'in_review',
-    priority: 'high',
-    goalId: 'goal_1',
-    assigneeAgentId: 'agent_dev',
-    acceptanceCriteria: [
-      { text: '5 Kanban columns: Backlog, Todo, In Progress, In Review, Done', completed: true },
-      { text: 'Optimistic mutations with TanStack Query', completed: true },
-      { text: 'TaskPlannerModal 2-step wizard', completed: true },
-      { text: 'Evidence-Based QA Review Controls', completed: false },
-    ],
-    deliverables: [
-      { kind: 'file', label: 'Kanban_Architecture_Wireframe.png', url: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=800&q=80', byteSize: 345000 },
-      { kind: 'link', label: 'Live Vercel Preview URL', url: 'https://paperclip-mern.vercel.app' },
-    ],
-    lastHydratedCommentCount: 1,
-    createdAt: new Date(Date.now() - 86400000).toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    _id: 'issue_3',
-    companyId: 'demo_company_1',
-    identifier: 'PAP-3',
-    title: 'Atomic 5-minute checkout lock with 409 guard',
-    description: 'Prevent duplicate agent runs with findOneAndUpdate atomic lease and 30s zombie watchdog.',
-    status: 'in_progress',
-    priority: 'urgent',
-    goalId: 'goal_2',
-    assigneeAgentId: 'agent_cto',
-    lockedByRunId: 'run_sample_1',
-    lockExpiresAt: new Date(Date.now() + 4 * 60 * 1000).toISOString(),
-    acceptanceCriteria: [
-      { text: 'Atomic findOneAndUpdate query', completed: true },
-      { text: '409 Conflict return when ticket already locked', completed: true },
-      { text: '30s watchdog sweep resetting stalled runs', completed: false },
-    ],
-    deliverables: [],
-    lastHydratedCommentCount: 0,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    _id: 'issue_4',
-    companyId: 'demo_company_1',
-    identifier: 'PAP-4',
-    title: 'Live SSE Heartbeat Terminal Console',
-    description: 'Connect EventSource to GET /api/runs/:id/stream and stream [SYSTEM], [THOUGHT], [TOOL_CALL], and [BUDGET].',
-    status: 'todo',
-    priority: 'medium',
-    goalId: 'goal_2',
-    assigneeAgentId: 'agent_dev',
-    acceptanceCriteria: [
-      { text: '520px dark slate terminal (#0F172A)', completed: true },
-      { text: 'Real-time color-coded log levels', completed: true },
-      { text: 'Live microcent spend and elapsed timer', completed: true },
-    ],
-    deliverables: [],
-    lastHydratedCommentCount: 0,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    _id: 'issue_5',
-    companyId: 'demo_company_1',
-    identifier: 'PAP-5',
-    title: 'Microcent budget auto-stop circuit breaker',
-    description: 'Pre-flight budget check blocking runs when spentMonthlyMicrocents exceeds monthly cap.',
-    status: 'backlog',
-    priority: 'low',
-    goalId: 'goal_1',
-    acceptanceCriteria: [
-      { text: 'Integer microcents (1 cent = 10,000 microcents)', completed: false },
-      { text: '80% yellow warning threshold', completed: false },
-      { text: '100% emergency brake flipping agent to budget_stopped', completed: false },
-    ],
-    deliverables: [],
-    lastHydratedCommentCount: 0,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-];
+let mockIssues: Issue[] = [];
 
-let mockComments: Record<string, IssueComment[]> = {
-  issue_2: [
-    {
-      _id: 'comm_1',
-      companyId: 'demo_company_1',
-      issueId: 'issue_2',
-      authorType: 'agent',
-      authorId: 'agent_dev',
-      authorName: 'Nexus (Engineer)',
-      body: 'I have finished implementing the Kanban drag-and-drop and attached the wireframe preview. Submitting for QA review!',
-      createdAt: new Date(Date.now() - 3600000).toISOString(),
-    },
-    {
-      _id: 'comm_2',
-      companyId: 'demo_company_1',
-      issueId: 'issue_2',
-      authorType: 'agent',
-      authorId: 'agent_qa',
-      authorName: 'Vigil (QA Gatekeeper)',
-      body: '@Atlas I am currently inspecting the acceptance checklist before marking this ticket Done.',
-      createdAt: new Date(Date.now() - 1800000).toISOString(),
-    },
-  ],
-};
+let mockComments: Record<string, IssueComment[]> = {};
 
 // ── Generic API Fetch with Mock Fallback ──────────────────
 
@@ -317,7 +186,7 @@ async function apiFetch<T>(
     const newIssue: Issue = {
       _id: `issue_${Date.now()}`,
       companyId: 'demo_company_1',
-      identifier: `PAP-${mockIssues.length + 1}`,
+      identifier: `FORGE-${mockIssues.length + 1}`,
       title: body.title || 'Untitled Issue',
       description: body.description || '',
       status: body.status || 'todo',
