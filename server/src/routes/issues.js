@@ -1,11 +1,33 @@
 const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
-const { Issue, IssueComment, Agent, Goal, Company } = require('../models');
+const { Issue, IssueComment, Agent, Goal, Company, User } = require('../models');
 const { acquireLock, releaseLock } = require('../services/issueLockService');
 const { allocateIssueKey } = require('../utils/issueKey');
 const { invokeGemini } = require('../adapters/geminiAdapter');
 const { enqueueWakeup } = require('../services/wakeupQueue');
+
+async function getOrCreateDemoCompany() {
+  let company = (await Company.findOne({ name: 'Forge AI' })) || (await Company.findOne());
+  if (company) return company;
+
+  let owner = await User.findOne();
+  if (!owner) {
+    owner = await User.create({
+      name: 'Forge Operator',
+      email: 'operator@forgeai.dev',
+      password: 'ForgeOperator2026!',
+    });
+  }
+
+  company = await Company.create({
+    name: 'Forge AI',
+    issuePrefix: 'FORGE',
+    ownerUserId: owner._id,
+    members: [{ userId: owner._id, role: 'owner' }],
+  });
+  return company;
+}
 
 // ── GET /api/companies/:cid/issues ──────────────────────────
 router.get('/companies/:cid/issues', async (req, res) => {
@@ -38,10 +60,7 @@ router.post('/companies/:cid/issues', async (req, res) => {
       }
     } else {
       // Find or create default demo company
-      let demoCo = await Company.findOne({ name: 'Forge AI' });
-      if (!demoCo) {
-        demoCo = await Company.create({ name: 'Forge AI', issuePrefix: 'FORGE' });
-      }
+      const demoCo = await getOrCreateDemoCompany();
       companyId = demoCo._id;
       try {
         keyInfo = await allocateIssueKey(companyId);
@@ -96,10 +115,7 @@ router.get('/companies/:cid/agents', async (req, res) => {
 
     // If no agents in DB yet, seed initial 4-agent startup org
     if (agents.length === 0) {
-      let company = await Company.findOne();
-      if (!company) {
-        company = await Company.create({ name: 'Forge AI', issuePrefix: 'FORGE' });
-      }
+      const company = await getOrCreateDemoCompany();
       const ceo = await Agent.create({
         companyId: company._id,
         name: 'Atlas (CEO)',
@@ -166,10 +182,7 @@ router.get('/companies/:cid/goals', async (req, res) => {
     let goals = await Goal.find(filter);
 
     if (goals.length === 0) {
-      let company = await Company.findOne();
-      if (!company) {
-        company = await Company.create({ name: 'Forge AI', issuePrefix: 'FORGE' });
-      }
+      const company = await getOrCreateDemoCompany();
       const g1 = await Goal.create({
         companyId: company._id,
         title: 'Launch Paperclip MERN MVP on Free-Tier Cloud',

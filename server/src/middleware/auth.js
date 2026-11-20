@@ -75,11 +75,20 @@ const requireCompanyMember = async (req, res, next) => {
       company = await Company.findById(companyId);
     } else if (companyId === 'demo_company_1' || companyId === 'default') {
       company = (await Company.findOne({ name: 'Forge AI' })) || (await Company.findOne());
-      if (!company && req.user) {
+      if (!company) {
+        let owner = req.user || (await User.findOne());
+        if (!owner) {
+          owner = await User.create({
+            name: 'Forge Operator',
+            email: 'operator@forgeai.dev',
+            password: 'ForgeOperator2026!',
+          });
+        }
         company = await Company.create({
           name: 'Forge AI',
           issuePrefix: 'FORGE',
-          ownerUserId: req.user._id,
+          ownerUserId: owner._id,
+          members: [{ userId: owner._id, role: 'owner' }],
         });
       }
     } else {
