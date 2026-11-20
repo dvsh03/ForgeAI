@@ -6,6 +6,28 @@ const { runEventBus, executeHeartbeat } = require('../services/heartbeatEngine')
 const { enqueueWakeup } = require('../services/wakeupQueue');
 
 /**
+ * GET /api/runs
+ * List recent heartbeat runs
+ */
+router.get('/', async (req, res) => {
+  try {
+    const { companyId } = req.query;
+    const filter = {};
+    if (companyId && mongoose.Types.ObjectId.isValid(companyId)) {
+      filter.companyId = companyId;
+    }
+    const runs = await HeartbeatRun.find(filter)
+      .sort({ createdAt: -1 })
+      .limit(10)
+      .populate('agentId', 'name role')
+      .populate('targetIssueId', 'identifier title issueKey');
+    res.json(runs);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
  * GET /api/runs/:id/stream
  * Server-Sent Events (SSE) live telemetry console endpoint
  */

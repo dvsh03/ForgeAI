@@ -7,6 +7,7 @@ import SettingsPage from './pages/SettingsPage';
 import AuditLogPage from './pages/AuditLogPage';
 import Dashboard from './pages/Dashboard';
 import AuthPage from './pages/AuthPage';
+import { apiGet } from './lib/api';
 import {
   LayoutDashboard,
   GitBranch,
@@ -36,12 +37,24 @@ export default function App() {
 
   const [activeCompanyId] = useState('demo_company_1');
   const [route, setRoute] = useState(() => window.location.hash.replace('#/', '').replace('#', '') || 'issues');
+  const [pendingApprovalsCount, setPendingApprovalsCount] = useState(0);
 
   useEffect(() => {
     const onHashChange = () => setRoute(window.location.hash.replace('#/', '').replace('#', '') || 'issues');
     window.addEventListener('hashchange', onHashChange);
     return () => window.removeEventListener('hashchange', onHashChange);
   }, []);
+
+  useEffect(() => {
+    if (currentUser) {
+      apiGet<{ approvals?: Array<{ status: string }> }>(`/api/companies/${activeCompanyId}/approvals`)
+        .then((res) => {
+          const pending = (res.approvals || []).filter((a) => a.status === 'pending').length;
+          setPendingApprovalsCount(pending);
+        })
+        .catch(() => setPendingApprovalsCount(0));
+    }
+  }, [currentUser, activeCompanyId, route]);
 
   const navigate = (nextRoute: string) => {
     window.location.hash = `/${nextRoute}`;
@@ -62,7 +75,7 @@ export default function App() {
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'org-chart', label: 'Org Chart', icon: GitBranch },
     { id: 'issues', label: 'Issues Board', icon: CheckSquare },
-    { id: 'approvals', label: 'Approvals', icon: ShieldAlert, count: 2 },
+    { id: 'approvals', label: 'Approvals', icon: ShieldAlert, count: pendingApprovalsCount },
     { id: 'audit', label: 'Audit Log', icon: ScrollText },
     { id: 'settings', label: 'Settings', icon: Settings },
   ];

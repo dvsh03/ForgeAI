@@ -93,7 +93,7 @@ export interface Company {
   _id: string;
   name: string;
   description?: string;
-  issuePrefix: string;         // e.g. "PAP"
+  issuePrefix: string;         // e.g. "FORGE"
   issueCounter: number;        // atomic $inc counter
   budgetMonthlyCents: number;  // $5.00 default (500)
   spentMonthlyMicrocents: number;
@@ -142,7 +142,7 @@ export interface Goal {
 export interface Issue {
   _id: string;
   companyId: string;
-  identifier: string;           // e.g. "PAP-1"
+  identifier: string;           // e.g. "FORGE-1"
   issueKey?: string;            // alias for identifier
   title: string;
   description?: string;

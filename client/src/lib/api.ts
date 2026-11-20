@@ -324,30 +324,7 @@ async function apiFetch<T>(
 
   // Approvals listing and decisions
   if (path.includes('/approvals') && (!init.method || init.method === 'GET')) {
-    return {
-      approvals: [
-        {
-          _id: 'approval_hire_1',
-          companyId: 'demo_company_1',
-          type: 'hire_agent',
-          requestedByAgentId: 'agent_cto',
-          payload: { name: 'Mira', role: 'researcher', title: 'Competitive Research Analyst', budgetMonthlyCents: 250 },
-          status: 'pending',
-          createdAt: new Date(Date.now() - 3600000).toISOString(),
-          updatedAt: new Date().toISOString(),
-        },
-        {
-          _id: 'approval_plan_1',
-          companyId: 'demo_company_1',
-          type: 'strategy_plan',
-          requestedByAgentId: 'agent_ceo',
-          payload: { objective: 'Prepare Q4 developer launch campaign', targetDate: '2026-11-30', estimatedBudgetCents: 150 },
-          status: 'pending',
-          createdAt: new Date(Date.now() - 7200000).toISOString(),
-          updatedAt: new Date().toISOString(),
-        },
-      ],
-    } as unknown as T;
+    return { approvals: [] } as unknown as T;
   }
   if (/^\/api\/approvals\/[^/]+\/decide$/.test(path) && init.method === 'POST') {
     const body = JSON.parse(String(init.body || '{}'));
@@ -418,21 +395,7 @@ async function apiFetch<T>(
   }
 
   if (/^\/api\/companies\/[^/]+\/budget-incidents$/.test(path) && (!init.method || init.method === 'GET')) {
-    return {
-      incidents: [
-        {
-          _id: 'incident_demo_1',
-          companyId: 'demo_company_1',
-          agentId: 'agent_ceo',
-          agentName: 'Atlas (CEO)',
-          threshold: 100,
-          spentMonthlyMicrocents: 5000000,
-          budgetMonthlyCents: 500,
-          status: 'open',
-          createdAt: new Date().toISOString(),
-        },
-      ],
-    } as unknown as T;
+    return { incidents: [] } as unknown as T;
   }
 
   // Demo seed and audit log
@@ -440,10 +403,7 @@ async function apiFetch<T>(
     return { company: {}, agents: DEMO_AGENTS, goals: DEMO_GOALS, issues: mockIssues } as unknown as T;
   }
   if (/^\/api\/companies\/[^/]+\/audit$/.test(path) && (!init.method || init.method === 'GET')) {
-    return [
-      { _id: 'log_1', actorType: 'user', actorId: 'user_1', action: 'update_company', entityType: 'Company', entityId: 'demo_company_1', details: { budgetMonthlyCents: 500 }, createdAt: new Date(Date.now() - 600000).toISOString() },
-      { _id: 'log_2', actorType: 'agent', actorId: 'agent_cto', action: 'submit_for_review', entityType: 'Issue', entityId: 'PAP-3', details: { status: 'in_review' }, createdAt: new Date(Date.now() - 1800000).toISOString() },
-    ] as unknown as T;
+    return [] as unknown as T;
   }
 
   // Goals listing
@@ -515,7 +475,7 @@ async function apiFetch<T>(
       startedAt: new Date(Date.now() - 45000).toISOString(),
       logs: [
         { ts: new Date(Date.now() - 40000).toISOString(), level: 'SYSTEM', message: 'Heartbeat initialized. Adapter: Groq Llama 3.3 70B.' },
-        { ts: new Date(Date.now() - 35000).toISOString(), level: 'LLM_THOUGHT', message: 'Reading target ticket PAP-3. Checking active lease on lockedByRunId...' },
+        { ts: new Date(Date.now() - 35000).toISOString(), level: 'LLM_THOUGHT', message: 'Reading target ticket FORGE-1. Checking active lease on lockedByRunId...' },
         { ts: new Date(Date.now() - 25000).toISOString(), level: 'TOOL_CALL', message: 'Executing atomic findOneAndUpdate lock lease (5 min lease acquired).' },
         { ts: new Date(Date.now() - 15000).toISOString(), level: 'BUDGET', message: 'Microcent check: spentMonthlyMicrocents = 185,000 / 3,000,000 (6.1% of budget cap).' },
         { ts: new Date().toISOString(), level: 'INFO', message: 'Hydrating unread comments. 0 new comments found since last check.' },

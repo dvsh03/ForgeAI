@@ -19,8 +19,8 @@ export default function AuditLogPage({ companyId }: { companyId: string }) {
 
   useEffect(() => {
     apiGet<AuditEntry[] | { logs: AuditEntry[] }>(`/api/companies/${companyId}/audit`)
-      .then((response) => setLogs(Array.isArray(response) ? response : response.logs))
-      .catch(() => setLogs(DEMO_LOGS));
+      .then((response) => setLogs(Array.isArray(response) ? response : response.logs || []))
+      .catch(() => setLogs([]));
   }, [companyId]);
 
   const filtered = useMemo(() => {
@@ -76,9 +76,3 @@ export default function AuditLogPage({ companyId }: { companyId: string }) {
     </div>
   );
 }
-
-const DEMO_LOGS: AuditEntry[] = [
-  { _id: 'log_1', actorType: 'user', actorId: 'user_1', action: 'update_company', entityType: 'Company', entityId: 'demo_company_1', details: { budgetMonthlyCents: 500 }, createdAt: new Date(Date.now() - 600000).toISOString() },
-  { _id: 'log_2', actorType: 'agent', actorId: 'agent_cto', action: 'submit_for_review', entityType: 'Issue', entityId: 'PAP-3', details: { status: 'in_review' }, createdAt: new Date(Date.now() - 1800000).toISOString() },
-  { _id: 'log_3', actorType: 'system', actorId: 'heartbeat_watchdog', action: 'release_stalled_lock', entityType: 'HeartbeatRun', entityId: 'run_old', details: { issueId: 'PAP-5' }, createdAt: new Date(Date.now() - 3600000).toISOString() },
-];

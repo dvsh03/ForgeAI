@@ -18,12 +18,12 @@ export default function ApprovalsPage({ companyId }: { companyId: string }) {
       apiGet<{ incidents: BudgetIncident[] }>(`/api/companies/${companyId}/budget-incidents`),
     ])
       .then(([approvalResponse, incidentResponse]) => {
-        setApprovals(approvalResponse.approvals);
-        setIncidents(incidentResponse.incidents);
+        setApprovals(approvalResponse.approvals || []);
+        setIncidents(incidentResponse.incidents || []);
       })
       .catch(() => {
-        setApprovals(DEMO_APPROVALS);
-        setIncidents(DEMO_INCIDENTS);
+        setApprovals([]);
+        setIncidents([]);
       })
       .finally(() => setLoading(false));
   }, [companyId]);
@@ -145,36 +145,3 @@ interface BudgetIncident {
   spentMonthlyMicrocents: number;
   budgetMonthlyCents: number;
 }
-
-const DEMO_INCIDENTS: BudgetIncident[] = [
-  {
-    _id: 'incident_demo_1',
-    agentId: 'agent_ceo',
-    agentName: 'Atlas (CEO)',
-    spentMonthlyMicrocents: 5000000,
-    budgetMonthlyCents: 500,
-  },
-];
-
-const DEMO_APPROVALS: Approval[] = [
-  {
-    _id: 'approval_hire_1',
-    companyId: 'demo_company_1',
-    type: 'hire_agent',
-    requestedByAgentId: 'agent_cto',
-    payload: { name: 'Mira', role: 'researcher', title: 'Competitive Research Analyst', budgetMonthlyCents: 250 },
-    status: 'pending',
-    createdAt: new Date(Date.now() - 3600000).toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    _id: 'approval_plan_1',
-    companyId: 'demo_company_1',
-    type: 'strategy_plan',
-    requestedByAgentId: 'agent_ceo',
-    payload: { objective: 'Prepare Q4 developer launch campaign', targetDate: '2026-11-30', estimatedBudgetCents: 150 },
-    status: 'pending',
-    createdAt: new Date(Date.now() - 7200000).toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-];
