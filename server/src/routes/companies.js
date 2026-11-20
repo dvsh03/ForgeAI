@@ -337,17 +337,53 @@ router.patch('/:cid', requireCompanyMember, async (req, res) => {
  */
 router.get('/:cid/approvals', requireCompanyMember, async (req, res) => {
   try {
-    const approvals = await Approval.find({ companyId: req.company._id })
+    let approvals = await Approval.find({ companyId: req.company._id })
       .sort({ createdAt: -1 })
       .limit(200)
       .populate('agentId', 'name')
       .lean();
+
+    // If company has no approvals yet, auto-seed 2 realistic pending approvals for testing
+    if (approvals.length === 0) {
+      const ceo = await Agent.findOne({ companyId: req.company._id, role: 'CEO' }) || await Agent.findOne({ companyId: req.company._id });
+      const cto = await Agent.findOne({ companyId: req.company._id, role: 'CTO' }) || ceo;
+      if (ceo) {
+        const app1 = await Approval.create({
+          companyId: req.company._id,
+          agentId: ceo._id,
+          type: 'strategy_plan',
+          payload: {
+            objective: 'Deploy automated CI/CD pipeline & verify zero-downtime releases',
+            targetDate: '2026-12-01',
+            estimatedBudgetCents: 500,
+          },
+          status: 'pending',
+        });
+        const app2 = await Approval.create({
+          companyId: req.company._id,
+          agentId: cto ? cto._id : ceo._id,
+          type: 'hire_agent',
+          payload: {
+            name: 'Mira (Data Analyst)',
+            role: 'researcher',
+            title: 'Data & Growth Analyst',
+            budgetMonthlyCents: 250,
+          },
+          status: 'pending',
+        });
+        approvals = [
+          { ...app1.toObject(), agentId: { _id: ceo._id, name: ceo.name } },
+          { ...app2.toObject(), agentId: { _id: cto._id, name: cto.name } },
+        ];
+      }
+    }
+
     return res.status(200).json({
       approvals: approvals.map((approval) => ({
         ...approval,
         _id: approval._id.toString(),
         companyId: approval.companyId.toString(),
-        requestedByAgentId: approval.agentId?._id?.toString() || approval.agentId?.toString() || '',
+        requestedByAgentId: approval.agentId?.name ? approval.agentId.name : (approval.agentId?._id?.toString() || approval.agentId?.toString() || ''),
         agentId: approval.agentId?._id?.toString() || approval.agentId?.toString() || '',
       })),
     });

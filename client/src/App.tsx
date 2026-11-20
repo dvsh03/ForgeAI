@@ -46,14 +46,19 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (currentUser) {
-      apiGet<{ approvals?: Array<{ status: string }> }>(`/api/companies/${activeCompanyId}/approvals`)
-        .then((res) => {
-          const pending = (res.approvals || []).filter((a) => a.status === 'pending').length;
-          setPendingApprovalsCount(pending);
-        })
-        .catch(() => setPendingApprovalsCount(0));
-    }
+    const fetchPending = () => {
+      if (currentUser) {
+        apiGet<{ approvals?: Array<{ status: string }> }>(`/api/companies/${activeCompanyId}/approvals`)
+          .then((res) => {
+            const pending = (res.approvals || []).filter((a) => a.status === 'pending').length;
+            setPendingApprovalsCount(pending);
+          })
+          .catch(() => setPendingApprovalsCount(0));
+      }
+    };
+    fetchPending();
+    const interval = setInterval(fetchPending, 3000);
+    return () => clearInterval(interval);
   }, [currentUser, activeCompanyId, route]);
 
   const navigate = (nextRoute: string) => {
