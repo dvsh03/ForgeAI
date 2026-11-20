@@ -26,10 +26,8 @@ export default function SettingsPage({ companyId }: { companyId: string }) {
   useEffect(() => {
     apiGet<{ company: Company }>(`/api/companies/${companyId}`).then((response) => setCompany(response.company));
     apiGet<{ secrets: SecretRow[] }>(`/api/companies/${companyId}/secrets`)
-      .then((response) => setSecrets(response.secrets))
-      .catch(() => setSecrets([
-        { _id: 'secret_groq', key: 'GROQ_API_KEY', maskedPreview: 'gsk_••••8f1a', createdAt: new Date().toISOString() },
-      ]));
+      .then((response) => setSecrets(response.secrets || []))
+      .catch(() => setSecrets([]));
   }, [companyId]);
 
   const saveCompany = async () => {
@@ -74,13 +72,13 @@ export default function SettingsPage({ companyId }: { companyId: string }) {
 
   const exportCompany = async () => {
     try {
-      await apiDownload(`/api/companies/${companyId}/export`, `paperclip-${company?.issuePrefix || 'company'}-${Date.now()}.json`);
+      await apiDownload(`/api/companies/${companyId}/export`, `forge-${company?.issuePrefix || 'company'}-${Date.now()}.json`);
     } catch {
       const data = JSON.stringify({ company, agents: [], goals: [], issues: [], comments: [] }, null, 2);
       const objectUrl = URL.createObjectURL(new Blob([data], { type: 'application/json' }));
       const link = document.createElement('a');
       link.href = objectUrl;
-      link.download = `paperclip-${company?.issuePrefix || 'company'}-${Date.now()}.json`;
+      link.download = `forge-${company?.issuePrefix || 'company'}-${Date.now()}.json`;
       link.click();
       URL.revokeObjectURL(objectUrl);
     }

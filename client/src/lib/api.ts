@@ -150,6 +150,11 @@ async function apiFetch<T>(
     !getToken() && (response.status === 401 || response.status === 404)
   )) {
     const errorBody = await response.json().catch(() => ({}));
+    if (response.status === 401 && getToken()) {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      window.dispatchEvent(new Event('auth:logout'));
+    }
     throw new ApiError(
       response.status,
       typeof errorBody.error === 'string' ? errorBody.error : `Request failed with status ${response.status}`,

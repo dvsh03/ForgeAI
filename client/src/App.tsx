@@ -42,7 +42,12 @@ export default function App() {
   useEffect(() => {
     const onHashChange = () => setRoute(window.location.hash.replace('#/', '').replace('#', '') || 'issues');
     window.addEventListener('hashchange', onHashChange);
-    return () => window.removeEventListener('hashchange', onHashChange);
+    const handleAuthLogout = () => setCurrentUser(null);
+    window.addEventListener('auth:logout', handleAuthLogout);
+    return () => {
+      window.removeEventListener('hashchange', onHashChange);
+      window.removeEventListener('auth:logout', handleAuthLogout);
+    };
   }, []);
 
   useEffect(() => {
