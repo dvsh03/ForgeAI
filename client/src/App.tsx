@@ -126,11 +126,10 @@ export default function App() {
                 key={id}
                 type="button"
                 onClick={() => navigate(id)}
-                className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-xs transition-colors ${
-                  route === id
-                    ? 'border border-violet-600/30 bg-violet-600/10 font-medium text-violet-300'
-                    : 'text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200'
-                }`}
+                className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-xs transition-colors ${route === id
+                  ? 'border border-violet-600/30 bg-violet-600/10 font-medium text-violet-300'
+                  : 'text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200'
+                  }`}
               >
                 <span className="flex items-center gap-2.5"><Icon className="h-4 w-4" />{label}</span>
                 {count ? (
