@@ -6,6 +6,7 @@ import ApprovalsPage from './pages/ApprovalsPage';
 import SettingsPage from './pages/SettingsPage';
 import AuditLogPage from './pages/AuditLogPage';
 import Dashboard from './pages/Dashboard';
+import AuthPage from './pages/AuthPage';
 import {
   LayoutDashboard,
   GitBranch,
@@ -14,6 +15,7 @@ import {
   Settings,
   Building2,
   ScrollText,
+  LogOut,
 } from 'lucide-react';
 
 const queryClient = new QueryClient({
@@ -23,6 +25,15 @@ const queryClient = new QueryClient({
 });
 
 export default function App() {
+  const [currentUser, setCurrentUser] = useState<{ name: string; email: string } | null>(() => {
+    try {
+      const saved = localStorage.getItem('user');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+
   const [activeCompanyId] = useState('demo_company_1');
   const [route, setRoute] = useState(() => window.location.hash.replace('#/', '').replace('#', '') || 'issues');
 
@@ -36,6 +47,17 @@ export default function App() {
     window.location.hash = `/${nextRoute}`;
   };
 
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    setCurrentUser(null);
+  };
+
+  // If user is not authenticated, render Login / Register view
+  if (!currentUser) {
+    return <AuthPage onAuthSuccess={(user) => setCurrentUser(user)} />;
+  }
+
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'org-chart', label: 'Org Chart', icon: GitBranch },
@@ -44,6 +66,8 @@ export default function App() {
     { id: 'audit', label: 'Audit Log', icon: ScrollText },
     { id: 'settings', label: 'Settings', icon: Settings },
   ];
+
+  const userInitial = currentUser.name ? currentUser.name.charAt(0).toUpperCase() : 'U';
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -77,14 +101,25 @@ export default function App() {
             ))}
           </nav>
 
+          {/* User Profile & Logout */}
           <div className="flex items-center justify-between border-t border-zinc-800 px-1 pt-3">
-            <div className="flex items-center gap-2">
-              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-violet-600 text-xs font-bold text-white">S</div>
-              <div>
-                <p className="text-xs font-medium text-zinc-200">Sahil</p>
-                <p className="text-[10px] text-zinc-500">Board Owner</p>
+            <div className="flex items-center gap-2 overflow-hidden">
+              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-violet-600 text-xs font-bold text-white">
+                {userInitial}
+              </div>
+              <div className="truncate">
+                <p className="truncate text-xs font-medium text-zinc-200">{currentUser.name}</p>
+                <p className="truncate text-[10px] text-zinc-500">{currentUser.email}</p>
               </div>
             </div>
+
+            <button
+              onClick={handleLogout}
+              className="rounded p-1 text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-red-400"
+              title="Sign Out"
+            >
+              <LogOut className="h-4 w-4" />
+            </button>
           </div>
         </aside>
 
