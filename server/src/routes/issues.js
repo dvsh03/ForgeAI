@@ -38,15 +38,15 @@ router.post('/companies/:cid/issues', async (req, res) => {
       }
     } else {
       // Find or create default demo company
-      let demoCo = await Company.findOne({ name: 'Acme AI' });
+      let demoCo = await Company.findOne({ name: 'Forge AI' });
       if (!demoCo) {
-        demoCo = await Company.create({ name: 'Acme AI', issuePrefix: 'ACM' });
+        demoCo = await Company.create({ name: 'Forge AI', issuePrefix: 'FORGE' });
       }
       companyId = demoCo._id;
       try {
         keyInfo = await allocateIssueKey(companyId);
       } catch (e) {
-        keyInfo = { issueNumber: Math.floor(Math.random() * 1000), issueKey: `ACM-${Math.floor(Math.random() * 1000)}` };
+        keyInfo = { issueNumber: Math.floor(Math.random() * 1000), issueKey: `FORGE-${Math.floor(Math.random() * 1000)}` };
       }
     }
 
@@ -98,7 +98,7 @@ router.get('/companies/:cid/agents', async (req, res) => {
     if (agents.length === 0) {
       let company = await Company.findOne();
       if (!company) {
-        company = await Company.create({ name: 'Acme AI', issuePrefix: 'ACM' });
+        company = await Company.create({ name: 'Forge AI', issuePrefix: 'FORGE' });
       }
       const ceo = await Agent.create({
         companyId: company._id,
@@ -168,7 +168,7 @@ router.get('/companies/:cid/goals', async (req, res) => {
     if (goals.length === 0) {
       let company = await Company.findOne();
       if (!company) {
-        company = await Company.create({ name: 'Acme AI', issuePrefix: 'ACM' });
+        company = await Company.create({ name: 'Forge AI', issuePrefix: 'FORGE' });
       }
       const g1 = await Goal.create({
         companyId: company._id,

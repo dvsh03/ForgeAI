@@ -490,9 +490,9 @@ async function apiFetch<T>(
     return {
       company: {
         _id: 'demo_company_1',
-        name: 'Acme AI',
+        name: 'Forge AI',
         description: 'Autonomous AI workforce',
-        issuePrefix: 'ACM',
+        issuePrefix: 'FORGE',
         issueCounter: mockIssues.length,
         budgetMonthlyCents: 500,
         spentMonthlyMicrocents: 415000,
@@ -508,9 +508,9 @@ async function apiFetch<T>(
     return {
       company: {
         _id: 'demo_company_1',
-        name: 'Acme AI',
+        name: 'Forge AI',
         description: 'Autonomous AI workforce',
-        issuePrefix: 'ACM',
+        issuePrefix: 'FORGE',
         issueCounter: mockIssues.length,
         budgetMonthlyCents: 500,
         spentMonthlyMicrocents: 415000,

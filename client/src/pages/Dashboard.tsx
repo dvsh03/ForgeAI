@@ -41,7 +41,7 @@ export default function Dashboard({ companyId }: { companyId: string }) {
     <div className="h-full overflow-y-auto bg-zinc-950 p-6">
       <header className="mb-6">
         <h1 className="text-xl font-semibold text-zinc-100">Command Dashboard</h1>
-        <p className="mt-1 text-xs text-zinc-500">Acme AI operational overview</p>
+        <p className="mt-1 text-xs text-zinc-500">Forge AI operational overview</p>
       </header>
 
       <div className="mb-5 grid grid-cols-2 gap-3 xl:grid-cols-4">

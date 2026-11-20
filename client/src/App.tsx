@@ -76,8 +76,8 @@ export default function App() {
           <div className="flex items-center gap-2.5 rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-xs">
             <Building2 className="h-4 w-4 text-violet-400" />
             <div className="flex-1 truncate">
-              <p className="font-semibold text-zinc-200">Acme AI</p>
-              <p className="font-mono text-[10px] text-zinc-500">ACM</p>
+              <p className="font-semibold text-zinc-200">Forge AI</p>
+              <p className="font-mono text-[10px] text-zinc-500">FORGE</p>
             </div>
           </div>
 
