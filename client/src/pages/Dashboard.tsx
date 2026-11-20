@@ -173,20 +173,43 @@ export default function Dashboard({ companyId }: { companyId: string }) {
           </header>
           <div className="divide-y divide-zinc-800">
             {activities.length > 0 ? (
-              activities.map((activity) => {
-                const actor = activity.actorName || activity.actorType || 'System';
-                const actionText = activity.action.replace(/_/g, ' ');
-                const timeText = formatTimeAgo(activity.createdAt);
-                return (
-                  <div key={activity._id} className="px-4 py-3">
-                    <p className="text-xs text-zinc-300">
-                      <span className="font-semibold text-zinc-200">{actor}</span>{' '}
-                      <span className="text-zinc-400">{actionText}</span>
-                    </p>
-                    <p className="mt-1 text-[10px] text-zinc-600">{timeText}</p>
-                  </div>
-                );
-              })
+              activities
+                .filter((act, idx, arr) => {
+                  // Prefer explicit domain events over raw HTTP endpoint names
+                  if (act.action.startsWith('post_') && arr.some((o) => o.createdAt === act.createdAt && !o.action.startsWith('post_'))) {
+                    return false;
+                  }
+                  return true;
+                })
+                .slice(0, 6)
+                .map((activity) => {
+                  const actor = activity.actorName || activity.actorType || 'System';
+                  const formatActionText = (act: string) => {
+                    const dict: Record<string, string> = {
+                      approval_approved: 'approved governance proposal',
+                      approval_rejected: 'rejected governance proposal',
+                      hire_agent: 'hired an AI agent',
+                      create_company: 'created company workspace',
+                      update_company: 'updated company settings',
+                      seed_demo_company: 'initialized starter org',
+                      create_issue: 'created a new task',
+                      post_approvals: 'submitted governance decision',
+                      post_issues: 'created ticket',
+                    };
+                    return dict[act] || act.replace(/^(post_|get_|patch_|delete_)/i, '').replace(/_/g, ' ');
+                  };
+                  const actionText = formatActionText(activity.action);
+                  const timeText = formatTimeAgo(activity.createdAt);
+                  return (
+                    <div key={activity._id} className="px-4 py-3">
+                      <p className="text-xs text-zinc-300">
+                        <span className="font-semibold text-zinc-200">{actor}</span>{' '}
+                        <span className="text-zinc-400">{actionText}</span>
+                      </p>
+                      <p className="mt-1 text-[10px] text-zinc-600">{timeText}</p>
+                    </div>
+                  );
+                })
             ) : (
               <div className="px-4 py-8 text-center text-xs text-zinc-500">
                 No activity recorded yet. System operational.
