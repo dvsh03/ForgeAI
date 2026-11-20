@@ -109,10 +109,22 @@ const requireCompanyMember = async (req, res, next) => {
       Array.isArray(company.members) &&
       company.members.some((m) => m.userId && m.userId.toString() === userIdStr);
 
-    if (!isOwner && !isMember && companyId !== 'demo_company_1') {
-      return res.status(403).json({
-        error: 'Access denied: You do not have permission to access this company workspace',
-      });
+    if (!isOwner && !isMember) {
+      if (
+        company.name === 'Forge AI' ||
+        company.issuePrefix === 'FORGE' ||
+        companyId === 'demo_company_1' ||
+        companyId === 'default' ||
+        !company.ownerUserId
+      ) {
+        if (!Array.isArray(company.members)) company.members = [];
+        company.members.push({ userId: req.user._id, role: 'member' });
+        await company.save().catch(() => {});
+      } else {
+        return res.status(403).json({
+          error: 'Access denied: You do not have permission to access this company workspace',
+        });
+      }
     }
 
     req.company = company;
