@@ -5,7 +5,6 @@ const AgentConfigRevision = require('../models/AgentConfigRevision');
 const BudgetIncident = require('../models/BudgetIncident');
 const Issue = require('../models/Issue');
 const WakeupQueue = require('../models/WakeupQueue');
-const { executeHeartbeat } = require('../services/heartbeatEngine');
 const { authenticateJWT, requireCompanyMember } = require('../middleware/auth');
 const { recordActivity } = require('../middleware/auditLog');
 
@@ -294,17 +293,6 @@ router.post('/:agentId/invoke', async (req, res) => {
       triggerType: 'manual',
       targetIssueId,
       payload: req.body.payload || {},
-    });
-
-    // Execute asynchronously in background
-    executeHeartbeat({
-      agentId: req.agent._id,
-      companyId: req.agent.companyId,
-      triggerType: 'manual',
-      issueId: targetIssueId,
-      wakeupId: wakeup._id,
-    }).catch((err) => {
-      console.error(`[Invoke] Background heartbeat failed: ${err.message}`);
     });
 
     await recordActivity({
