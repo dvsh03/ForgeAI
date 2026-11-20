@@ -101,7 +101,57 @@ router.post('/', async (req, res) => {
  */
 router.get('/:cid/agents', requireCompanyMember, async (req, res) => {
   try {
-    const agents = await Agent.find({ companyId: req.company._id }).sort({ createdAt: 1 }).lean();
+    let agents = await Agent.find({ companyId: req.company._id }).sort({ createdAt: 1 }).lean();
+    if (agents.length === 0) {
+      const ceo = await Agent.create({
+        companyId: req.company._id,
+        name: 'Atlas (CEO)',
+        title: 'Chief Executive Agent',
+        role: 'CEO',
+        adapter: 'groq_llm',
+        model: 'llama-3.3-70b-versatile',
+        status: 'idle',
+        budgetMonthlyCents: 500,
+        instructionsMarkdown: '# CEO Directive\nCoordinate team, break high-level goals into atomic tickets.',
+      });
+      const cto = await Agent.create({
+        companyId: req.company._id,
+        name: 'Ada (CTO)',
+        title: 'Chief Technical Agent',
+        role: 'CTO',
+        reportsTo: ceo._id,
+        adapter: 'groq_llm',
+        model: 'llama-3.3-70b-versatile',
+        status: 'idle',
+        budgetMonthlyCents: 350,
+        instructionsMarkdown: '# CTO Directive\nArchitect backend, enforce atomic locks and microcent accounting.',
+      });
+      const dev = await Agent.create({
+        companyId: req.company._id,
+        name: 'Nexus (Engineer)',
+        title: 'Lead Full Stack Engineer',
+        role: 'Senior Engineer',
+        reportsTo: cto._id,
+        adapter: 'groq_llm',
+        model: 'llama-3.3-70b-versatile',
+        status: 'idle',
+        budgetMonthlyCents: 250,
+        instructionsMarkdown: '# Senior Engineer Directive\nImplement components, write tests, attach deliverables.',
+      });
+      const qa = await Agent.create({
+        companyId: req.company._id,
+        name: 'Vigil (QA Gatekeeper)',
+        title: 'QA & Security Engineer',
+        role: 'QA Engineer',
+        reportsTo: cto._id,
+        adapter: 'gemini_llm',
+        model: 'gemini-2.5-flash',
+        status: 'idle',
+        budgetMonthlyCents: 200,
+        instructionsMarkdown: '# QA Directive\nVerify acceptance criteria and inspect deliverables before closing tickets.',
+      });
+      agents = [ceo, cto, dev, qa].map((a) => a.toObject());
+    }
     return res.status(200).json({
       agents: agents.map((agent) => ({
         ...agent,
@@ -271,63 +321,63 @@ router.patch('/:cid', requireCompanyMember, async (req, res) => {
       ip: req.ip || '',
     });
 
-    /**
-     * @route   GET /api/companies/:cid/approvals
-     * @desc    List governance approvals for a company
-     * @access  Private (Company Member)
-     */
-    router.get('/:cid/approvals', requireCompanyMember, async (req, res) => {
-      try {
-        const approvals = await Approval.find({ companyId: req.company._id })
-          .sort({ createdAt: -1 })
-          .limit(200)
-          .populate('agentId', 'name')
-          .lean();
-        return res.status(200).json({
-          approvals: approvals.map((approval) => ({
-            ...approval,
-            _id: approval._id.toString(),
-            companyId: approval.companyId.toString(),
-            requestedByAgentId: approval.agentId?._id?.toString() || approval.agentId?.toString() || '',
-            agentId: approval.agentId?._id?.toString() || approval.agentId?.toString() || '',
-          })),
-        });
-      } catch (err) {
-        return res.status(500).json({ error: 'Failed to fetch approvals', details: err.message });
-      }
-    });
-
-    /**
-     * @route   GET /api/companies/:cid/budget-incidents
-     * @desc    List open agent budget incidents for a company
-     * @access  Private (Company Member)
-     */
-    router.get('/:cid/budget-incidents', requireCompanyMember, async (req, res) => {
-      try {
-        const incidents = await BudgetIncident.find({ companyId: req.company._id, status: 'open' })
-          .sort({ createdAt: -1 })
-          .populate('agentId', 'name')
-          .lean();
-        return res.status(200).json({
-          incidents: incidents.map((incident) => ({
-            ...incident,
-            _id: incident._id.toString(),
-            companyId: incident.companyId.toString(),
-            agentId: incident.agentId?._id?.toString() || incident.agentId?.toString() || '',
-            agentName: incident.agentId?.name || 'Agent',
-          })),
-        });
-      } catch (err) {
-        return res.status(500).json({ error: 'Failed to fetch budget incidents', details: err.message });
-      }
-    });
-
     return res.status(200).json({
       message: 'Company settings updated successfully',
       company: updated,
     });
   } catch (err) {
     return res.status(500).json({ error: 'Failed to update company', details: err.message });
+  }
+});
+
+/**
+ * @route   GET /api/companies/:cid/approvals
+ * @desc    List governance approvals for a company
+ * @access  Private (Company Member)
+ */
+router.get('/:cid/approvals', requireCompanyMember, async (req, res) => {
+  try {
+    const approvals = await Approval.find({ companyId: req.company._id })
+      .sort({ createdAt: -1 })
+      .limit(200)
+      .populate('agentId', 'name')
+      .lean();
+    return res.status(200).json({
+      approvals: approvals.map((approval) => ({
+        ...approval,
+        _id: approval._id.toString(),
+        companyId: approval.companyId.toString(),
+        requestedByAgentId: approval.agentId?._id?.toString() || approval.agentId?.toString() || '',
+        agentId: approval.agentId?._id?.toString() || approval.agentId?.toString() || '',
+      })),
+    });
+  } catch (err) {
+    return res.status(500).json({ error: 'Failed to fetch approvals', details: err.message });
+  }
+});
+
+/**
+ * @route   GET /api/companies/:cid/budget-incidents
+ * @desc    List open agent budget incidents for a company
+ * @access  Private (Company Member)
+ */
+router.get('/:cid/budget-incidents', requireCompanyMember, async (req, res) => {
+  try {
+    const incidents = await BudgetIncident.find({ companyId: req.company._id, status: 'open' })
+      .sort({ createdAt: -1 })
+      .populate('agentId', 'name')
+      .lean();
+    return res.status(200).json({
+      incidents: incidents.map((incident) => ({
+        ...incident,
+        _id: incident._id.toString(),
+        companyId: incident.companyId.toString(),
+        agentId: incident.agentId?._id?.toString() || incident.agentId?.toString() || '',
+        agentName: incident.agentId?.name || 'Agent',
+      })),
+    });
+  } catch (err) {
+    return res.status(500).json({ error: 'Failed to fetch budget incidents', details: err.message });
   }
 });
 
