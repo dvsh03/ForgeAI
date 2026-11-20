@@ -17,6 +17,7 @@ const loadApproval = async (req, res, next) => {
     const approval = await Approval.findById(req.params.approvalId);
     if (!approval) return res.status(404).json({ error: 'Approval not found' });
     req.approval = approval;
+    req.companyId = approval.companyId;
     req.params.cid = approval.companyId.toString();
     return next();
   } catch (err) {

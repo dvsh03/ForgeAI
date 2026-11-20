@@ -55,6 +55,11 @@ const authenticateJWT = async (req, res, next) => {
 const requireCompanyMember = async (req, res, next) => {
   try {
     const companyId =
+      req.companyId ||
+      (req.company && req.company._id) ||
+      (req.agent && req.agent.companyId) ||
+      (req.approval && req.approval.companyId) ||
+      (req.incident && req.incident.companyId) ||
       req.params.cid ||
       req.params.companyId ||
       req.headers['x-company-id'] ||

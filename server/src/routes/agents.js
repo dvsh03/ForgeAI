@@ -44,6 +44,7 @@ const loadAgent = async (req, res, next) => {
     }
 
     req.agent = agent;
+    req.companyId = agent.companyId;
     req.params.cid = agent.companyId.toString();
     return next();
   } catch (err) {

@@ -15,6 +15,7 @@ const loadIncident = async (req, res, next) => {
     const incident = await BudgetIncident.findById(req.params.incidentId);
     if (!incident) return res.status(404).json({ error: 'Budget incident not found' });
     req.incident = incident;
+    req.companyId = incident.companyId;
     req.params.cid = incident.companyId.toString();
     return next();
   } catch (err) {
