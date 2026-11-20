@@ -17,6 +17,10 @@ const agentConfigRevisionSchema = new mongoose.Schema(
       type: Number,
       required: [true, 'Revision number is required'],
     },
+    changedKeys: {
+      type: [String],
+      default: [],
+    },
     changedByUserId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',

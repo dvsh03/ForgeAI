@@ -8,6 +8,9 @@ const secretRoutes = require('./routes/secrets');
 const uploadRoutes = require('./routes/uploads');
 const runRoutes = require('./routes/runs');
 const issueRoutes = require('./routes/issues');
+const agentRoutes = require('./routes/agents');
+const approvalRoutes = require('./routes/approvals');
+const budgetIncidentRoutes = require('./routes/budgetIncidents');
 const { auditLogMiddleware } = require('./middleware/auditLog');
 
 const app = express();
@@ -62,6 +65,9 @@ app.get('/api/health', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/companies', companyRoutes);
 app.use('/api/companies/:cid/secrets', secretRoutes);
+app.use('/api/agents', agentRoutes);
+app.use('/api/approvals', approvalRoutes);
+app.use('/api/budget-incidents', budgetIncidentRoutes);
 app.use('/api/uploads', uploadRoutes);
 app.use('/api/runs', runRoutes);
 app.use('/api', issueRoutes);
