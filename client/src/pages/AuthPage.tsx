@@ -6,7 +6,6 @@ import {
   User,
   ArrowRight,
   ShieldCheck,
-  Sparkles,
   Bot,
 } from 'lucide-react';
 
@@ -56,13 +55,6 @@ export default function AuthPage({ onAuthSuccess }: AuthPageProps) {
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleQuickDemoLogin = () => {
-    const demoUser = { name: 'Sahil', email: 'sahil@forgeai.dev' };
-    localStorage.setItem('token', 'demo_jwt_token_paperclip');
-    localStorage.setItem('user', JSON.stringify(demoUser));
-    onAuthSuccess(demoUser);
   };
 
   return (
@@ -172,26 +164,6 @@ export default function AuthPage({ onAuthSuccess }: AuthPageProps) {
             <ArrowRight className="h-4 w-4" />
           </button>
         </form>
-
-        {/* Divider */}
-        <div className="relative my-6">
-          <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-zinc-800" />
-          </div>
-          <div className="relative flex justify-center text-[10px] uppercase">
-            <span className="bg-zinc-900 px-2 text-zinc-500">Or For Instant Evaluation</span>
-          </div>
-        </div>
-
-        {/* Quick Demo Login */}
-        <button
-          type="button"
-          onClick={handleQuickDemoLogin}
-          className="flex w-full items-center justify-center gap-2 rounded-lg border border-zinc-800 bg-zinc-950 py-2 text-xs font-medium text-zinc-300 transition-colors hover:bg-zinc-800 hover:text-white"
-        >
-          <Sparkles className="h-3.5 w-3.5 text-amber-400" />
-          1-Click Demo Access (Board Owner)
-        </button>
 
         {/* Footer security badges */}
         <div className="mt-6 flex items-center justify-center gap-4 text-[11px] text-zinc-500">
