@@ -1,0 +1,363 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [9 0 R 11 0 R] /Count 2 >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Oblique >>
+endobj
+6 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Courier >>
+endobj
+7 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Courier-Bold >>
+endobj
+8 0 obj
+<< /Length 8593 >>
+stream
+0.12 0.35 0.88 rg
+40.00 804.00 515.28 4.00 re
+f
+BT 0.06 0.09 0.16 rg /F2 15.5 Tf 40.00 782.00 Td (Developer 2 Dependency & Integration Guide) Tj ET
+BT 0.35 0.4 0.48 rg /F1 10 Tf 40.00 768.00 Td (Paperclip MERN - Autonomous AI Workforce Control Plane) Tj ET
+0.75 0.86 0.99 RG
+1 w
+0.94 0.96 1 rg
+375.00 758.00 180.28 36.00 re
+B
+BT 0.11 0.31 0.85 rg /F2 8.5 Tf 383.00 781.00 Td (OWNER: Developer 2) Tj ET
+BT 0.2 0.28 0.4 rg /F1 7.5 Tf 383.00 769.00 Td (DOMAIN: Heartbeat, Locks & AI Adapters) Tj ET
+BT 0.4 0.45 0.5 rg /F1 7.5 Tf 383.00 760.00 Td (SPRINT: Nov 15 - Nov 30 \(16 Days\)) Tj ET
+0.85 0.88 0.92 RG
+1 w
+0.97 0.98 0.99 rg
+40.00 680.00 515.28 64.00 re
+B
+0.2 0.45 0.9 rg
+40.00 680.00 4.00 64.00 re
+f
+BT 0.1 0.2 0.5 rg /F2 9.5 Tf 52.00 730.00 Td (Executive Summary: Inter-Team Dependencies) Tj ET
+BT 0.2 0.25 0.32 rg /F1 8 Tf 52.00 716.00 Td (Developer 2 does NOT need any files or code from Dev 3 \(Frontend\) or Dev 4 \(Org Chart UI & DevOps\). Dev 3 and) Tj ET
+BT 0.2 0.25 0.32 rg /F1 8 Tf 52.00 705.00 Td (Dev 4 actually depend on Dev 2's Server-Sent Events \(SSE\) stream and atomic locks! Dev 2's only backend) Tj ET
+BT 0.2 0.25 0.32 rg /F1 8 Tf 52.00 694.00 Td (touchpoints are with Developer 1, who provides the shared Mongoose database models, the AES-256-GCM vault) Tj ET
+BT 0.2 0.25 0.32 rg /F1 8 Tf 52.00 683.00 Td (decryption helper, and the Express server foundation.) Tj ET
+BT 0.06 0.09 0.16 rg /F2 11 Tf 40.00 658.00 Td (1. Cross-Developer Dependency Matrix) Tj ET
+0.85 0.88 0.92 rg
+40.00 653.00 515.28 1.00 re
+f
+0.78 0.82 0.87 RG
+1 w
+0.93 0.95 0.97 rg
+40.00 633.00 515.28 18.00 re
+B
+BT 0.15 0.2 0.28 rg /F2 8.5 Tf 48.00 638.00 Td (Team Member) Tj ET
+BT 0.15 0.2 0.28 rg /F2 8.5 Tf 165.00 638.00 Td (Files Needed?) Tj ET
+BT 0.15 0.2 0.28 rg /F2 8.5 Tf 255.00 638.00 Td (Technical Reality & Integration Relationship) Tj ET
+0.88 0.9 0.94 RG
+1 w
+1 1 1 rg
+40.00 601.00 515.28 32.00 re
+B
+BT 0.1 0.1 0.1 rg /F2 8.5 Tf 48.00 619.00 Td (Dev 3 \(Frontend\)) Tj ET
+BT 0.4 0.45 0.5 rg /F1 7.5 Tf 48.00 609.00 Td (Kanban, Drawer, Live Terminal) Tj ET
+0.8 0.84 0.88 RG
+1 w
+0.95 0.96 0.98 rg
+165.00 610.00 72.00 15.00 re
+B
+BT 0.35 0.4 0.45 rg /F2 7.5 Tf 171.00 614.00 Td (NONE \(0 Files\)) Tj ET
+BT 0.2 0.25 0.32 rg /F1 7.5 Tf 255.00 623.00 Td (Dev 3 builds the React client. Dev 3 consumes Dev 2's live SSE) Tj ET
+BT 0.2 0.25 0.32 rg /F1 7.5 Tf 255.00 613.50 Td (stream \(GET /api/runs/:id/stream\) and atomic locks. Dev 2 supplies) Tj ET
+BT 0.2 0.25 0.32 rg /F1 7.5 Tf 255.00 604.00 Td (endpoints to Dev 3; Dev 2 needs zero files from Dev 3.) Tj ET
+0.88 0.9 0.94 RG
+1 w
+0.98 0.99 1 rg
+40.00 569.00 515.28 32.00 re
+B
+BT 0.1 0.1 0.1 rg /F2 8.5 Tf 48.00 587.00 Td (Dev 4 \(Governance/DevOps\)) Tj ET
+BT 0.4 0.45 0.5 rg /F1 7.5 Tf 48.00 577.00 Td (Org Chart, Approvals, Render) Tj ET
+0.8 0.84 0.88 RG
+1 w
+0.95 0.96 0.98 rg
+165.00 578.00 72.00 15.00 re
+B
+BT 0.35 0.4 0.45 rg /F2 7.5 Tf 171.00 582.00 Td (NONE \(0 Files\)) Tj ET
+BT 0.2 0.25 0.32 rg /F1 7.5 Tf 255.00 591.00 Td (Dev 4 builds the Org Chart UI, Settings, and Render config. Dev 4's) Tj ET
+BT 0.2 0.25 0.32 rg /F1 7.5 Tf 255.00 581.50 Td ("Run Now" button invokes Dev 2's agent execution pipeline. Dev 2) Tj ET
+BT 0.2 0.25 0.32 rg /F1 7.5 Tf 255.00 572.00 Td (needs zero files from Dev 4.) Tj ET
+0.88 0.9 0.94 RG
+1 w
+1 1 1 rg
+40.00 533.00 515.28 36.00 re
+B
+BT 0.1 0.1 0.1 rg /F2 8.5 Tf 48.00 555.00 Td (Dev 1 \(Backend Core\)) Tj ET
+BT 0.4 0.45 0.5 rg /F1 7.5 Tf 48.00 545.00 Td (Models, Auth & Secrets Vault) Tj ET
+0.7 0.82 0.98 RG
+1 w
+0.93 0.96 1 rg
+165.00 544.00 78.00 15.00 re
+B
+BT 0.1 0.3 0.8 rg /F2 7.5 Tf 169.00 548.00 Td (MODELS & VAULT) Tj ET
+BT 0.2 0.25 0.32 rg /F1 7.5 Tf 255.00 559.00 Td (Dev 1 provides Mongoose database models \(server/src/models/*\), the) Tj ET
+BT 0.2 0.25 0.32 rg /F1 7.5 Tf 255.00 549.50 Td (AES-256-GCM secrets decryption utility \(utils/vault.js\), and) Tj ET
+BT 0.2 0.25 0.32 rg /F1 7.5 Tf 255.00 540.00 Td (Express server setup where Dev 2 routes attach.) Tj ET
+BT 0.06 0.09 0.16 rg /F2 11 Tf 40.00 513.00 Td (2. Detailed Breakdown: What Dev 1 Provides to Dev 2) Tj ET
+0.85 0.88 0.92 rg
+40.00 508.00 515.28 1.00 re
+f
+0.88 0.9 0.94 RG
+1 w
+1 1 1 rg
+40.00 387.00 252.00 116.00 re
+B
+0.88 0.9 0.94 RG
+1 w
+0.96 0.97 0.99 rg
+40.00 483.00 252.00 20.00 re
+B
+BT 0.1 0.15 0.25 rg /F2 8.2 Tf 48.00 489.00 Td (1. Mongoose Models \(server/src/models/*\)) Tj ET
+BT 0.8 0.1 0.1 rg /F2 7 Tf 238.00 489.00 Td ([CRITICAL]) Tj ET
+BT 0.25 0.3 0.38 rg /F1 7.2 Tf 48.00 474.00 Td (Dev 2 queries and mutates database records via models:) Tj ET
+BT 0.25 0.3 0.38 rg /F1 7.2 Tf 48.00 464.40 Td (* Issue.js: Atomic 5-min checkout lock & unread comment) Tj ET
+BT 0.25 0.3 0.38 rg /F1 7.2 Tf 48.00 454.80 Td (cursor.) Tj ET
+BT 0.25 0.3 0.38 rg /F1 7.2 Tf 48.00 445.20 Td (* Agent.js: Instructions, budgetMonthlyCents, status) Tj ET
+BT 0.25 0.3 0.38 rg /F1 7.2 Tf 48.00 435.60 Td (checks.) Tj ET
+BT 0.25 0.3 0.38 rg /F1 7.2 Tf 48.00 426.00 Td (* WakeupQueue.js: Insert & coalesce wakeups \(7-day TTL\).) Tj ET
+BT 0.25 0.3 0.38 rg /F1 7.2 Tf 48.00 416.40 Td (* HeartbeatRun.js: Logs \(max 50\), tokens, cost) Tj ET
+BT 0.25 0.3 0.38 rg /F1 7.2 Tf 48.00 406.80 Td (accounting.) Tj ET
+BT 0.25 0.3 0.38 rg /F1 7.2 Tf 48.00 397.20 Td (* IssueComment.js: Delta-only unread comment queries.) Tj ET
+BT 0.25 0.3 0.38 rg /F1 7.2 Tf 48.00 387.60 Td (* Approval.js: request_hire governance requests.) Tj ET
+0.88 0.9 0.94 RG
+1 w
+1 1 1 rg
+303.00 387.00 252.00 116.00 re
+B
+0.88 0.9 0.94 RG
+1 w
+0.96 0.97 0.99 rg
+303.00 483.00 252.00 20.00 re
+B
+BT 0.1 0.15 0.25 rg /F2 8.2 Tf 311.00 489.00 Td (2. Secrets Decryption Helper) Tj ET
+BT 0.8 0.1 0.1 rg /F2 7 Tf 501.00 489.00 Td ([CRITICAL]) Tj ET
+BT 0.25 0.3 0.38 rg /F1 7.2 Tf 311.00 474.00 Td (Location: server/src/utils/vault.js) Tj ET
+BT 0.25 0.3 0.38 rg /F1 7.2 Tf 311.00 464.40 Td (Function: getDecryptedSecret\(companyId, keyName\)) Tj ET
+BT 0.25 0.3 0.38 rg /F1 7.2 Tf 311.00 445.20 Td (Why Dev 2 needs it:) Tj ET
+BT 0.25 0.3 0.38 rg /F1 7.2 Tf 311.00 435.60 Td (API keys are stored in MongoDB with AES-256-GCM) Tj ET
+BT 0.25 0.3 0.38 rg /F1 7.2 Tf 311.00 426.00 Td (encryption. During outbound LLM tool execution, Dev 2's) Tj ET
+BT 0.25 0.3 0.38 rg /F1 7.2 Tf 311.00 416.40 Td (groqAdapter.js and geminiAdapter.js call this helper to) Tj ET
+BT 0.25 0.3 0.38 rg /F1 7.2 Tf 311.00 406.80 Td (decrypt keys in-memory only.) Tj ET
+0.88 0.9 0.94 RG
+1 w
+1 1 1 rg
+40.00 263.00 252.00 116.00 re
+B
+0.88 0.9 0.94 RG
+1 w
+0.96 0.97 0.99 rg
+40.00 359.00 252.00 20.00 re
+B
+BT 0.1 0.15 0.25 rg /F2 8.2 Tf 48.00 365.00 Td (3. Auth & Multi-Tenant Middleware) Tj ET
+BT 0.1 0.4 0.8 rg /F2 7 Tf 233.00 365.00 Td ([REQUIRED]) Tj ET
+BT 0.25 0.3 0.38 rg /F1 7.2 Tf 48.00 350.00 Td (Location: server/src/middleware/auth.js) Tj ET
+BT 0.25 0.3 0.38 rg /F1 7.2 Tf 48.00 340.40 Td (Functions: verifyToken, requireCompany) Tj ET
+BT 0.25 0.3 0.38 rg /F1 7.2 Tf 48.00 321.20 Td (Why Dev 2 needs it:) Tj ET
+BT 0.25 0.3 0.38 rg /F1 7.2 Tf 48.00 311.60 Td (Dev 2 provides the SSE endpoint GET /api/runs/:id/stream) Tj ET
+BT 0.25 0.3 0.38 rg /F1 7.2 Tf 48.00 302.00 Td (and agent invocation routes. Dev 1's auth middleware) Tj ET
+BT 0.25 0.3 0.38 rg /F1 7.2 Tf 48.00 292.40 Td (authenticates incoming requests and injects) Tj ET
+BT 0.25 0.3 0.38 rg /F1 7.2 Tf 48.00 282.80 Td (req.companyId and req.user for strict tenant data) Tj ET
+BT 0.25 0.3 0.38 rg /F1 7.2 Tf 48.00 273.20 Td (isolation.) Tj ET
+0.88 0.9 0.94 RG
+1 w
+1 1 1 rg
+303.00 263.00 252.00 116.00 re
+B
+0.88 0.9 0.94 RG
+1 w
+0.96 0.97 0.99 rg
+303.00 359.00 252.00 20.00 re
+B
+BT 0.1 0.15 0.25 rg /F2 8.2 Tf 311.00 365.00 Td (4. Express Server & DB Connection) Tj ET
+BT 0.1 0.4 0.8 rg /F2 7 Tf 496.00 365.00 Td ([REQUIRED]) Tj ET
+BT 0.25 0.3 0.38 rg /F1 7.2 Tf 311.00 350.00 Td (Location: server/src/server.js, src/db.js) Tj ET
+BT 0.25 0.3 0.38 rg /F1 7.2 Tf 311.00 340.40 Td (Components: MongoDB Atlas M0 Mongoose connection) Tj ET
+BT 0.25 0.3 0.38 rg /F1 7.2 Tf 311.00 321.20 Td (Why Dev 2 needs it:) Tj ET
+BT 0.25 0.3 0.38 rg /F1 7.2 Tf 311.00 311.60 Td (* Dev 2's runsRouter must be mounted in Express) Tj ET
+BT 0.25 0.3 0.38 rg /F1 7.2 Tf 311.00 302.00 Td (\(app.use\('/api/runs', runsRouter\)\).) Tj ET
+BT 0.25 0.3 0.38 rg /F1 7.2 Tf 311.00 292.40 Td (* Dev 2's 30-Second Zombie Lock Watchdog background) Tj ET
+BT 0.25 0.3 0.38 rg /F1 7.2 Tf 311.00 282.80 Td (interval \(watchdog.js\) runs inside server.js on startup.) Tj ET
+0.88 0.9 0.94 rg
+40.00 42.00 515.28 1.00 re
+f
+BT 0.55 0.6 0.68 rg /F1 7.5 Tf 40.00 31.00 Td (Paperclip MERN - Developer 2 Architecture & Integration Blueprint) Tj ET
+BT 0.55 0.6 0.68 rg /F1 7.5 Tf 515.00 31.00 Td (Page 1 of 2) Tj ET
+endstream
+endobj
+9 0 obj
+<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R /F4 6 0 R /F5 7 0 R >> >> /MediaBox [0 0 595.28 841.89] /Contents 8 0 R >>
+endobj
+10 0 obj
+<< /Length 7520 >>
+stream
+0.12 0.35 0.88 rg
+40.00 804.00 515.28 4.00 re
+f
+BT 0.06 0.09 0.16 rg /F2 15.5 Tf 40.00 782.00 Td (Developer 2 Integration Guide & Technical Contract) Tj ET
+BT 0.35 0.4 0.48 rg /F1 10 Tf 40.00 768.00 Td (File-by-File Contract & Zero-Blocker Independence Strategy) Tj ET
+BT 0.06 0.09 0.16 rg /F2 11 Tf 40.00 744.00 Td (3. Dev 1 -> Dev 2 File-by-File Integration Contract) Tj ET
+0.85 0.88 0.92 rg
+40.00 739.00 515.28 1.00 re
+f
+0.78 0.82 0.87 RG
+1 w
+0.93 0.95 0.97 rg
+40.00 721.00 515.28 18.00 re
+B
+BT 0.15 0.2 0.28 rg /F2 8.5 Tf 48.00 726.00 Td (File / Artifact Path) Tj ET
+BT 0.15 0.2 0.28 rg /F2 8.5 Tf 185.00 726.00 Td (Dev 1 Output & Responsibility) Tj ET
+BT 0.15 0.2 0.28 rg /F2 8.5 Tf 345.00 726.00 Td (Exact Dev 2 Usage & Integration Point) Tj ET
+0.88 0.9 0.94 RG
+1 w
+1 1 1 rg
+40.00 690.00 515.28 31.00 re
+B
+BT 0.1 0.15 0.25 rg /F5 7.2 Tf 48.00 706.00 Td (server/src/models/Issue.js) Tj ET
+BT 0.25 0.3 0.38 rg /F1 7.2 Tf 185.00 712.00 Td (Defines lockedByRunId,) Tj ET
+BT 0.25 0.3 0.38 rg /F1 7.2 Tf 185.00 702.80 Td (lockExpiresAt,) Tj ET
+BT 0.25 0.3 0.38 rg /F1 7.2 Tf 185.00 693.60 Td (lastHydratedCommentCount,) Tj ET
+BT 0.25 0.3 0.38 rg /F1 7.2 Tf 185.00 684.40 Td (deliverables.) Tj ET
+BT 0.2 0.25 0.32 rg /F1 7.2 Tf 345.00 712.00 Td (Runs findOneAndUpdate atomic checkout \(5-min) Tj ET
+BT 0.2 0.25 0.32 rg /F1 7.2 Tf 345.00 702.80 Td (lock, 409 conflict\). Skips read comments.) Tj ET
+0.88 0.9 0.94 RG
+1 w
+0.98 0.99 1 rg
+40.00 659.00 515.28 31.00 re
+B
+BT 0.1 0.15 0.25 rg /F5 7.2 Tf 48.00 675.00 Td (server/src/models/Agent.js) Tj ET
+BT 0.25 0.3 0.38 rg /F1 7.2 Tf 185.00 681.00 Td (Defines instructionsMarkdown,) Tj ET
+BT 0.25 0.3 0.38 rg /F1 7.2 Tf 185.00 671.80 Td (adapterType, budgetMonthlyCents,) Tj ET
+BT 0.25 0.3 0.38 rg /F1 7.2 Tf 185.00 662.60 Td (spentMonthlyMicrocents.) Tj ET
+BT 0.2 0.25 0.32 rg /F1 7.2 Tf 345.00 681.00 Td (Pre-flight budget gate check. Flips status to) Tj ET
+BT 0.2 0.25 0.32 rg /F1 7.2 Tf 345.00 671.80 Td (budget_stopped when 100% budget reached.) Tj ET
+0.88 0.9 0.94 RG
+1 w
+1 1 1 rg
+40.00 628.00 515.28 31.00 re
+B
+BT 0.1 0.15 0.25 rg /F5 7.2 Tf 48.00 644.00 Td (server/src/models/WakeupQueue.js) Tj ET
+BT 0.25 0.3 0.38 rg /F1 7.2 Tf 185.00 650.00 Td (Defines agentId, triggerType,) Tj ET
+BT 0.25 0.3 0.38 rg /F1 7.2 Tf 185.00 640.80 Td (coalescedCount, 7-day TTL index.) Tj ET
+BT 0.2 0.25 0.32 rg /F1 7.2 Tf 345.00 650.00 Td (WakeupQueue service coalesces duplicate) Tj ET
+BT 0.2 0.25 0.32 rg /F1 7.2 Tf 345.00 640.80 Td (triggers into a single execution burst.) Tj ET
+0.88 0.9 0.94 RG
+1 w
+0.98 0.99 1 rg
+40.00 597.00 515.28 31.00 re
+B
+BT 0.1 0.15 0.25 rg /F5 7.2 Tf 48.00 613.00 Td (server/src/models/HeartbeatRun.js) Tj ET
+BT 0.25 0.3 0.38 rg /F1 7.2 Tf 185.00 619.00 Td (Defines logs \(max 50\), tokens,) Tj ET
+BT 0.25 0.3 0.38 rg /F1 7.2 Tf 185.00 609.80 Td (costMicrocents, status \(running,) Tj ET
+BT 0.25 0.3 0.38 rg /F1 7.2 Tf 185.00 600.60 Td (succeeded, failed, stalled\).) Tj ET
+BT 0.2 0.25 0.32 rg /F1 7.2 Tf 345.00 619.00 Td (Populates real-time telemetry and streams) Tj ET
+BT 0.2 0.25 0.32 rg /F1 7.2 Tf 345.00 609.80 Td (chunks over SSE \(GET /api/runs/:id/stream\).) Tj ET
+0.88 0.9 0.94 RG
+1 w
+1 1 1 rg
+40.00 566.00 515.28 31.00 re
+B
+BT 0.1 0.15 0.25 rg /F5 7.2 Tf 48.00 582.00 Td (server/src/models/Approval.js) Tj ET
+BT 0.25 0.3 0.38 rg /F1 7.2 Tf 185.00 588.00 Td (Defines pending hire_agent,) Tj ET
+BT 0.25 0.3 0.38 rg /F1 7.2 Tf 185.00 578.80 Td (strategy_plan, budget_override) Tj ET
+BT 0.25 0.3 0.38 rg /F1 7.2 Tf 185.00 569.60 Td (approval requests.) Tj ET
+BT 0.2 0.25 0.32 rg /F1 7.2 Tf 345.00 588.00 Td (LLM tool executor writes pending approval when) Tj ET
+BT 0.2 0.25 0.32 rg /F1 7.2 Tf 345.00 578.80 Td (agent calls request_hire.) Tj ET
+0.88 0.9 0.94 RG
+1 w
+0.98 0.99 1 rg
+40.00 535.00 515.28 31.00 re
+B
+BT 0.1 0.15 0.25 rg /F5 7.2 Tf 48.00 551.00 Td (server/src/utils/vault.js) Tj ET
+BT 0.25 0.3 0.38 rg /F1 7.2 Tf 185.00 557.00 Td (AES-256-GCM encryption/decryption) Tj ET
+BT 0.25 0.3 0.38 rg /F1 7.2 Tf 185.00 547.80 Td (routines and secret storage.) Tj ET
+BT 0.2 0.25 0.32 rg /F1 7.2 Tf 345.00 557.00 Td (getDecryptedSecret\(cid, key\) fetches in-memory) Tj ET
+BT 0.2 0.25 0.32 rg /F1 7.2 Tf 345.00 547.80 Td (Groq & Gemini API keys.) Tj ET
+0.88 0.9 0.94 RG
+1 w
+1 1 1 rg
+40.00 504.00 515.28 31.00 re
+B
+BT 0.1 0.15 0.25 rg /F5 7.2 Tf 48.00 520.00 Td (server/src/middleware/auth.js) Tj ET
+BT 0.25 0.3 0.38 rg /F1 7.2 Tf 185.00 526.00 Td (JWT validation & company tenant) Tj ET
+BT 0.25 0.3 0.38 rg /F1 7.2 Tf 185.00 516.80 Td (isolation middleware.) Tj ET
+BT 0.2 0.25 0.32 rg /F1 7.2 Tf 345.00 526.00 Td (Secures Dev 2 routes \(runs.js\) and injects) Tj ET
+BT 0.2 0.25 0.32 rg /F1 7.2 Tf 345.00 516.80 Td (req.companyId into context.) Tj ET
+0.88 0.9 0.94 RG
+1 w
+0.98 0.99 1 rg
+40.00 473.00 515.28 31.00 re
+B
+BT 0.1 0.15 0.25 rg /F5 7.2 Tf 48.00 489.00 Td (server/src/server.js) Tj ET
+BT 0.25 0.3 0.38 rg /F1 7.2 Tf 185.00 495.00 Td (Express HTTP bootstrap and MongoDB) Tj ET
+BT 0.25 0.3 0.38 rg /F1 7.2 Tf 185.00 485.80 Td (Atlas connection.) Tj ET
+BT 0.2 0.25 0.32 rg /F1 7.2 Tf 345.00 495.00 Td (Mounts /api/runs and starts Dev 2's 30-second) Tj ET
+BT 0.2 0.25 0.32 rg /F1 7.2 Tf 345.00 485.80 Td (Zombie Watchdog interval sweep.) Tj ET
+BT 0.06 0.09 0.16 rg /F2 11 Tf 40.00 451.00 Td (4. Developer 2 Zero-Blocker Strategy: Start Immediately) Tj ET
+0.85 0.88 0.92 rg
+40.00 446.00 515.28 1.00 re
+f
+0.73 0.89 0.74 RG
+1 w
+0.95 0.98 0.95 rg
+40.00 305.00 515.28 138.00 re
+B
+0.1 0.65 0.25 rg
+40.00 305.00 4.00 138.00 re
+f
+BT 0.08 0.45 0.18 rg /F2 9.5 Tf 52.00 427.00 Td (Why Developer 2 Can Build Everything Today Without Waiting for Anyone) Tj ET
+BT 0.15 0.35 0.2 rg /F1 7.5 Tf 52.00 412.00 Td (1. Pre-Defined Mongoose Models: All 12 Mongoose schemas are 100% frozen and documented line-by-line in Document 5) Tj ET
+BT 0.15 0.35 0.2 rg /F1 7.5 Tf 52.00 402.20 Td (\(Backend_Database_Schema_Document.pdf\). Dev 2 can place these schemas in server/src/models/ right now. When Dev 1) Tj ET
+BT 0.15 0.35 0.2 rg /F1 7.5 Tf 52.00 392.40 Td (joins, the code is already identical - guaranteeing 0 merge conflicts.) Tj ET
+BT 0.15 0.35 0.2 rg /F1 7.5 Tf 52.00 380.60 Td (2. Fully Independent AI Adapters & Tool Loops: Groq \(llama-3.3-70b-versatile\) and Gemini \(gemini-2.5-flash\)) Tj ET
+BT 0.15 0.35 0.2 rg /F1 7.5 Tf 52.00 370.80 Td (structured JSON tool calling, delta hydration, and the 5-step tool executor \(create_subtask, post_comment, etc.\)) Tj ET
+BT 0.15 0.35 0.2 rg /F1 7.5 Tf 52.00 361.00 Td (require only standard npm libraries and API keys to test.) Tj ET
+BT 0.15 0.35 0.2 rg /F1 7.5 Tf 52.00 349.20 Td (3. Autonomous Local Verification: Dev 2 can test the 5-minute atomic ticket lease \(and 409 Conflict rejection\),) Tj ET
+BT 0.15 0.35 0.2 rg /F1 7.5 Tf 52.00 339.40 Td (the 30-second Zombie Watchdog lock reclamation, and the SSE live stream using isolated Node.js test scripts) Tj ET
+BT 0.15 0.35 0.2 rg /F1 7.5 Tf 52.00 329.60 Td (without needing frontend UI or external team progress.) Tj ET
+BT 0.15 0.35 0.2 rg /F1 7.5 Tf 52.00 317.80 Td (4. Immediate Action Item: Initialize server/package.json, copy Document 5 schemas into server/src/models/, and) Tj ET
+BT 0.15 0.35 0.2 rg /F1 7.5 Tf 52.00 308.00 Td (begin implementing groqAdapter.js and the heartbeatEngine.js state machine immediately.) Tj ET
+0.88 0.9 0.94 rg
+40.00 42.00 515.28 1.00 re
+f
+BT 0.55 0.6 0.68 rg /F1 7.5 Tf 40.00 31.00 Td (Paperclip MERN - Developer 2 Architecture & Integration Blueprint) Tj ET
+BT 0.55 0.6 0.68 rg /F1 7.5 Tf 515.00 31.00 Td (Page 2 of 2) Tj ET
+endstream
+endobj
+11 0 obj
+<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R /F4 6 0 R /F5 7 0 R >> >> /MediaBox [0 0 595.28 841.89] /Contents 10 0 R >>
+endobj
+xref
+0 12
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000122 00000 n 
+0000000192 00000 n 
+0000000267 00000 n 
+0000000345 00000 n 
+0000000413 00000 n 
+0000000486 00000 n 
+0000009131 00000 n 
+0000009303 00000 n 
+0000016876 00000 n 
+trailer
+<< /Size 12 /Root 1 0 R >>
+startxref
+17050
+%%EOF
