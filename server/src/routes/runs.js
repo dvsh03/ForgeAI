@@ -4,6 +4,9 @@ const router = express.Router();
 const { HeartbeatRun, Agent } = require('../models');
 const { runEventBus, executeHeartbeat } = require('../services/heartbeatEngine');
 const { enqueueWakeup } = require('../services/wakeupQueue');
+const { authenticateJWT, requireCompanyMember } = require('../middleware/auth');
+
+router.use(authenticateJWT);
 
 /**
  * GET /api/runs
@@ -15,13 +18,26 @@ router.get('/', async (req, res) => {
     const filter = {};
     if (companyId && mongoose.Types.ObjectId.isValid(companyId)) {
       filter.companyId = companyId;
+      req.companyId = companyId;
+      await new Promise((resolve, reject) => {
+        requireCompanyMember(req, res, (err) => (err ? reject(err) : resolve()));
+      });
+      if (res.headersSent) return;
     }
     const runs = await HeartbeatRun.find(filter)
       .sort({ createdAt: -1 })
-      .limit(10)
+      .limit(20)
       .populate('agentId', 'name role')
-      .populate('targetIssueId', 'identifier title issueKey');
-    res.json(runs);
+      .populate('targetIssueId', 'identifier title issueKey status')
+      .lean();
+
+    const formattedRuns = runs.map((r) => ({
+      ...r,
+      issueId: r.targetIssueId,
+      issue: r.targetIssueId,
+    }));
+
+    res.json(formattedRuns);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -34,24 +50,31 @@ router.get('/', async (req, res) => {
 router.get('/:id/stream', async (req, res) => {
   const { id } = req.params;
 
+  // Send historical logs from DB if run already exists or was started earlier
+  let run = null;
+  if (mongoose.Types.ObjectId.isValid(id)) {
+    run = await HeartbeatRun.findById(id);
+    if (run) {
+      req.companyId = run.companyId;
+      await new Promise((resolve, reject) => {
+        requireCompanyMember(req, res, (err) => (err ? reject(err) : resolve()));
+      });
+      if (res.headersSent) return;
+    }
+  }
+
   // Set mandatory SSE headers
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
     'Cache-Control': 'no-cache, no-transform',
     'Connection': 'keep-alive',
-    'X-Accel-Buffering': 'no' // Disables proxy buffering on Render / Nginx
+    'X-Accel-Buffering': 'no', // Disables proxy buffering on Render / Nginx
   });
 
   // Keep-alive heartbeat comment every 15s
   const keepAliveInterval = setInterval(() => {
     res.write(': keep-alive\n\n');
   }, 15000);
-
-  // Send historical logs from DB if run already exists or was started earlier
-  let run = null;
-  if (mongoose.Types.ObjectId.isValid(id)) {
-    run = await HeartbeatRun.findById(id);
-  }
 
   if (run) {
     if (run.logs && run.logs.length > 0) {
@@ -105,10 +128,20 @@ router.get('/:id', async (req, res) => {
     }
     const run = await HeartbeatRun.findById(req.params.id)
       .populate('agentId', 'name role title')
-      .populate('issueId', 'identifier title status');
+      .populate('targetIssueId', 'identifier title status issueKey')
+      .lean();
     if (!run) {
       return res.status(404).json({ error: 'Run not found' });
     }
+
+    req.companyId = run.companyId;
+    await new Promise((resolve, reject) => {
+      requireCompanyMember(req, res, (err) => (err ? reject(err) : resolve()));
+    });
+    if (res.headersSent) return;
+
+    run.issueId = run.targetIssueId;
+    run.issue = run.targetIssueId;
     res.json(run);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -129,6 +162,12 @@ router.post('/agents/:id/invoke', async (req, res) => {
       return res.status(404).json({ error: 'Agent not found' });
     }
 
+    req.companyId = agent.companyId;
+    await new Promise((resolve, reject) => {
+      requireCompanyMember(req, res, (err) => (err ? reject(err) : resolve()));
+    });
+    if (res.headersSent) return;
+
     // Enqueue manual wakeup
     const { wakeup } = await enqueueWakeup({
       companyId: agent.companyId,
@@ -137,20 +176,41 @@ router.post('/agents/:id/invoke', async (req, res) => {
       payload: { issueId }
     });
 
-    // Execute asynchronously in background
-    executeHeartbeat({
-      agentId: agent._id,
+    const run = await HeartbeatRun.create({
       companyId: agent.companyId,
+      agentId: agent._id,
+      targetIssueId: issueId || null,
+      wakeupQueueId: wakeup._id,
       triggerType: 'manual',
-      issueId,
-      wakeupId: wakeup._id
-    }).catch(err => {
-      console.error(`[Invoke] Background heartbeat failed: ${err.message}`);
+      status: 'running',
+      startedAt: new Date(),
+      logs: [
+        {
+          ts: new Date(),
+          level: 'system',
+          message: `Manual heartbeat invocation queued for ${agent.name}`,
+        },
+      ],
+    });
+
+    // Execute asynchronously in background
+    setImmediate(() => {
+      executeHeartbeat({
+        agentId: agent._id,
+        companyId: agent.companyId,
+        triggerType: 'manual',
+        issueId,
+        wakeupId: wakeup._id,
+        existingRunId: run._id,
+      }).catch(err => {
+        console.error(`[Invoke] Background heartbeat failed: ${err.message}`);
+      });
     });
 
     res.status(202).json({
       message: 'Agent heartbeat invocation started',
       wakeupId: wakeup._id,
+      runId: run._id,
       agentId: agent._id
     });
   } catch (err) {

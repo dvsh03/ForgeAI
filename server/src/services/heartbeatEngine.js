@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const EventEmitter = require('events');
 const {
   Agent,
@@ -83,18 +84,22 @@ async function executeToolAction({ toolCall, agent, currentIssue, run, onLog }) 
         return { success: false, error: 'Cannot post comment: No active issue in context.' };
       }
 
+      const commentText = args.content || args.body || '';
       const comment = await IssueComment.create({
         companyId: agent.companyId,
         issueId: currentIssue._id,
         authorType: 'agent',
         authorId: String(agent._id),
-        body: args.body
+        authorAgentId: agent._id,
+        authorName: agent.name,
+        content: commentText,
+        body: commentText,
       });
 
-      onLog('SUCCESS', `Posted update to ticket ${currentIssue.identifier || currentIssue._id}`);
+      onLog('SUCCESS', `Posted update to ticket ${currentIssue.issueKey || currentIssue.identifier || currentIssue._id}`);
 
       // Parse @Mentions (e.g., @CTO, @Lead Dev, @AgentName)
-      const mentionMatches = args.body.match(/@(\w+)/g);
+      const mentionMatches = (commentText || '').match(/@(\w+)/g);
       if (mentionMatches) {
         for (const mention of mentionMatches) {
           const targetNameOrRole = mention.replace('@', '').toLowerCase();
@@ -110,6 +115,7 @@ async function executeToolAction({ toolCall, agent, currentIssue, run, onLog }) 
               companyId: agent.companyId,
               agentId: targetAgent._id,
               triggerType: 'mention',
+              targetIssueId: currentIssue._id,
               payload: { issueId: currentIssue._id, mentionedBy: agent.name }
             });
             onLog('SYSTEM', `Wakeup enqueued for mentioned agent: ${targetAgent.name}`);
@@ -148,15 +154,16 @@ async function executeToolAction({ toolCall, agent, currentIssue, run, onLog }) 
       currentIssue.status = 'in_review';
       await currentIssue.save();
 
-      onLog('SUCCESS', `Ticket ${currentIssue.identifier} submitted for QA Review. Checkout lock released.`);
+      onLog('SUCCESS', `Ticket ${currentIssue.issueKey || currentIssue.identifier || currentIssue._id} submitted for QA Review. Checkout lock released.`);
       return { success: true, status: 'in_review', summary: args.summary };
     }
 
     case 'request_hire': {
       const approval = await Approval.create({
         companyId: agent.companyId,
-        type: 'hire_agent',
+        agentId: agent._id,
         requestedByAgentId: agent._id,
+        type: 'hire_agent',
         payload: {
           role: args.role,
           title: args.title,
@@ -192,7 +199,8 @@ async function executeHeartbeat({
   companyId,
   triggerType = 'manual',
   issueId = null,
-  wakeupId = null
+  wakeupId = null,
+  existingRunId = null
 }) {
   // Stage 1 & 2: Pre-Flight Concurrency & Budget Gate
   const preCheck = await canAgentExecute(companyId, agentId, triggerType);
@@ -202,17 +210,23 @@ async function executeHeartbeat({
 
   const agent = preCheck.agent;
 
-  // Initialize HeartbeatRun record
-  const run = await HeartbeatRun.create({
-    companyId,
-    agentId: agent._id,
-    targetIssueId: issueId || null,
-    wakeupQueueId: wakeupId || null,
-    triggerType: triggerType || 'manual',
-    status: 'running',
-    startedAt: new Date(),
-    logs: []
-  });
+  // Initialize or resume HeartbeatRun record
+  let run = null;
+  if (existingRunId && mongoose.Types.ObjectId.isValid(existingRunId)) {
+    run = await HeartbeatRun.findById(existingRunId);
+  }
+  if (!run) {
+    run = await HeartbeatRun.create({
+      companyId,
+      agentId: agent._id,
+      targetIssueId: issueId || null,
+      wakeupQueueId: wakeupId || null,
+      triggerType: triggerType || 'manual',
+      status: 'running',
+      startedAt: new Date(),
+      logs: []
+    });
+  }
 
   // Helper logger that caps logs at 50 entries and emits SSE events
   const onLog = (rawLevel, message) => {
@@ -334,7 +348,7 @@ Operating Rules:
         acceptanceCriteria: lockedIssue.acceptanceCriteria,
         deliverables: lockedIssue.deliverables
       } : 'No specific ticket attached.',
-      newUnreadComments: unreadComments.map(c => `[${c.authorType}] ${c.body}`)
+      newUnreadComments: unreadComments.map(c => `[${c.authorType}] ${c.content || c.body || ''}`)
     };
 
     const messages = [

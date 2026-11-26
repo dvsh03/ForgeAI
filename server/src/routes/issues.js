@@ -6,6 +6,27 @@ const { acquireLock, releaseLock } = require('../services/issueLockService');
 const { allocateIssueKey } = require('../utils/issueKey');
 const { invokeGemini } = require('../adapters/geminiAdapter');
 const { enqueueWakeup } = require('../services/wakeupQueue');
+const { authenticateJWT, requireCompanyMember } = require('../middleware/auth');
+
+router.use(authenticateJWT);
+
+const loadIssueAndRequireMember = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(404).json({ error: 'Issue not found' });
+    }
+    const issue = await Issue.findById(id);
+    if (!issue) {
+      return res.status(404).json({ error: 'Issue not found' });
+    }
+    req.issue = issue;
+    req.companyId = issue.companyId;
+    return requireCompanyMember(req, res, next);
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+};
 
 async function getOrCreateDemoCompany() {
   let company = (await Company.findOne({ name: 'Forge AI' })) || (await Company.findOne());
@@ -30,7 +51,7 @@ async function getOrCreateDemoCompany() {
 }
 
 // ── GET /api/companies/:cid/issues ──────────────────────────
-router.get('/companies/:cid/issues', async (req, res) => {
+router.get('/companies/:cid/issues', requireCompanyMember, async (req, res) => {
   try {
     const { cid } = req.params;
     const filter = mongoose.Types.ObjectId.isValid(cid)
@@ -44,7 +65,7 @@ router.get('/companies/:cid/issues', async (req, res) => {
 });
 
 // ── POST /api/companies/:cid/issues ─────────────────────────
-router.post('/companies/:cid/issues', async (req, res) => {
+router.post('/companies/:cid/issues', requireCompanyMember, async (req, res) => {
   try {
     const { cid } = req.params;
     const { title, description, priority, status, assigneeAgentId, goalId, acceptanceCriteria } = req.body;
@@ -104,76 +125,8 @@ router.post('/companies/:cid/issues', async (req, res) => {
   }
 });
 
-// ── GET /api/companies/:cid/agents ──────────────────────────
-router.get('/companies/:cid/agents', async (req, res) => {
-  try {
-    const { cid } = req.params;
-    const filter = mongoose.Types.ObjectId.isValid(cid)
-      ? { companyId: cid }
-      : {};
-    let agents = await Agent.find(filter);
-
-    // If no agents in DB yet, seed initial 4-agent startup org
-    if (agents.length === 0) {
-      const company = await getOrCreateDemoCompany();
-      const ceo = await Agent.create({
-        companyId: company._id,
-        name: 'Atlas (CEO)',
-        role: 'ceo',
-        adapter: 'gemini_llm',
-        model: 'gemini-3.5-flash-lite',
-        status: 'idle',
-        budgetMonthlyCents: 500,
-        spentMonthlyMicrocents: 124000,
-        instructionsMarkdown: 'Coordinate team, break high-level goals into atomic tickets.',
-      });
-      const cto = await Agent.create({
-        companyId: company._id,
-        name: 'Ada (CTO)',
-        role: 'cto',
-        reportsTo: ceo._id,
-        adapter: 'gemini_llm',
-        model: 'gemini-3.5-flash-lite',
-        status: 'running',
-        budgetMonthlyCents: 300,
-        spentMonthlyMicrocents: 185000,
-        instructionsMarkdown: 'Architect backend, enforce atomic locks and microcent accounting.',
-      });
-      const dev = await Agent.create({
-        companyId: company._id,
-        name: 'Nexus (Engineer)',
-        role: 'engineer',
-        reportsTo: cto._id,
-        adapter: 'gemini_llm',
-        model: 'gemini-3.5-flash-lite',
-        status: 'idle',
-        budgetMonthlyCents: 200,
-        spentMonthlyMicrocents: 72000,
-        instructionsMarkdown: 'Implement components, write tests, attach deliverables.',
-      });
-      const qa = await Agent.create({
-        companyId: company._id,
-        name: 'Vigil (QA Gatekeeper)',
-        role: 'qa',
-        reportsTo: cto._id,
-        adapter: 'gemini_llm',
-        model: 'gemini-3.5-flash-lite',
-        status: 'idle',
-        budgetMonthlyCents: 150,
-        spentMonthlyMicrocents: 34000,
-        instructionsMarkdown: 'Verify acceptance criteria and inspect deliverables before closing tickets.',
-      });
-      agents = [ceo, cto, dev, qa];
-    }
-
-    res.json({ agents, tree: agents });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
 // ── GET /api/companies/:cid/goals ───────────────────────────
-router.get('/companies/:cid/goals', async (req, res) => {
+router.get('/companies/:cid/goals', requireCompanyMember, async (req, res) => {
   try {
     const { cid } = req.params;
     const filter = mongoose.Types.ObjectId.isValid(cid)
@@ -205,27 +158,14 @@ router.get('/companies/:cid/goals', async (req, res) => {
 });
 
 // ── GET /api/issues/:id ─────────────────────────────────────
-router.get('/issues/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(404).json({ error: 'Issue not found' });
-    }
-    const issue = await Issue.findById(id);
-    if (!issue) return res.status(404).json({ error: 'Issue not found' });
-    res.json(issue);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+router.get('/issues/:id', loadIssueAndRequireMember, async (req, res) => {
+  res.json(req.issue);
 });
 
 // ── PATCH /api/issues/:id ───────────────────────────────────
-router.patch('/issues/:id', async (req, res) => {
+router.patch('/issues/:id', loadIssueAndRequireMember, async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(404).json({ error: 'Issue not found' });
-    }
     const updated = await Issue.findByIdAndUpdate(
       id,
       { $set: req.body },
@@ -239,7 +179,7 @@ router.patch('/issues/:id', async (req, res) => {
 });
 
 // ── POST /api/issues/:id/checkout ───────────────────────────
-router.post('/issues/:id/checkout', async (req, res) => {
+router.post('/issues/:id/checkout', loadIssueAndRequireMember, async (req, res) => {
   try {
     const { id } = req.params;
     const runId = req.body.runId || new mongoose.Types.ObjectId();
@@ -254,13 +194,10 @@ router.post('/issues/:id/checkout', async (req, res) => {
 });
 
 // ── POST /api/issues/:id/qa-review ──────────────────────────
-router.post('/issues/:id/qa-review', async (req, res) => {
+router.post('/issues/:id/qa-review', loadIssueAndRequireMember, async (req, res) => {
   try {
     const { id } = req.params;
     const { passed, feedback } = req.body;
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(404).json({ error: 'Issue not found' });
-    }
     const targetStatus = passed ? 'done' : 'todo';
     const updated = await Issue.findByIdAndUpdate(
       id,
@@ -268,14 +205,36 @@ router.post('/issues/:id/qa-review', async (req, res) => {
       { new: true }
     );
     if (feedback) {
+      const commentText = `[QA Review: ${passed ? 'PASSED' : 'REJECTED'}] ${feedback}`;
       await IssueComment.create({
         companyId: updated.companyId,
         issueId: id,
         authorType: 'agent',
         authorName: 'Vigil (QA Gatekeeper)',
-        body: `[QA Review: ${passed ? 'PASSED' : 'REJECTED'}] ${feedback}`,
+        content: commentText,
+        body: commentText,
       });
     }
+
+    // If QA review failed, wake up the assigned worker to address issues
+    if (!passed && updated.assigneeAgentId) {
+      try {
+        await enqueueWakeup({
+          companyId: updated.companyId,
+          agentId: updated.assigneeAgentId,
+          triggerType: 'assignment',
+          targetIssueId: updated._id,
+          payload: {
+            issueId: updated._id,
+            reason: 'qa_rejected',
+            feedback: feedback || 'QA review rejected. Please address feedback.',
+          },
+        });
+      } catch (wakeErr) {
+        console.warn('[QA-Review] Failed to enqueue wakeup for rejected ticket:', wakeErr.message);
+      }
+    }
+
     res.json({ issue: updated, message: `QA Review completed: ${targetStatus}` });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -283,12 +242,9 @@ router.post('/issues/:id/qa-review', async (req, res) => {
 });
 
 // ── GET /api/issues/:id/comments ────────────────────────────
-router.get('/issues/:id/comments', async (req, res) => {
+router.get('/issues/:id/comments', loadIssueAndRequireMember, async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.json([]);
-    }
     const comments = await IssueComment.find({ issueId: id }).sort({ createdAt: 1 });
     res.json(comments);
   } catch (err) {
@@ -297,23 +253,58 @@ router.get('/issues/:id/comments', async (req, res) => {
 });
 
 // ── POST /api/issues/:id/comments ───────────────────────────
-router.post('/issues/:id/comments', async (req, res) => {
+router.post('/issues/:id/comments', loadIssueAndRequireMember, async (req, res) => {
   try {
     const { id } = req.params;
-    const { body, authorType, authorName } = req.body;
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(404).json({ error: 'Issue not found' });
+    const { body, content, authorType, authorName } = req.body;
+    const issue = req.issue;
+
+    const commentText = content || body || '';
+    if (!commentText.trim()) {
+      return res.status(400).json({ error: 'Comment content is required' });
     }
-    const issue = await Issue.findById(id);
-    if (!issue) return res.status(404).json({ error: 'Issue not found' });
 
     const comment = await IssueComment.create({
       companyId: issue.companyId,
       issueId: id,
       authorType: authorType || 'user',
-      authorName: authorName || 'Board Operator',
-      body: body || '',
+      authorUserId: req.user ? req.user._id : null,
+      authorName: authorName || (req.user ? req.user.name : 'Board Operator'),
+      content: commentText,
+      body: commentText,
     });
+
+    // Parse @Mentions (e.g., @Ada, @Nexus, @Vigil, @CTO, @Engineer)
+    const mentionMatches = commentText.match(/@(\w+)/g);
+    if (mentionMatches) {
+      for (const mention of mentionMatches) {
+        const targetNameOrRole = mention.replace('@', '').toLowerCase();
+        try {
+          const targetAgent = await Agent.findOne({
+            companyId: issue.companyId,
+            $or: [
+              { role: targetNameOrRole },
+              { name: new RegExp(`^${targetNameOrRole}`, 'i') },
+            ],
+          });
+          if (targetAgent) {
+            await enqueueWakeup({
+              companyId: issue.companyId,
+              agentId: targetAgent._id,
+              triggerType: 'mention',
+              targetIssueId: issue._id,
+              payload: {
+                issueId: issue._id,
+                mentionedBy: req.user ? req.user.name : 'Board Operator',
+                commentText,
+              },
+            });
+          }
+        } catch (mErr) {
+          console.warn('[Comments] Mention parse error:', mErr.message);
+        }
+      }
+    }
 
     res.status(201).json(comment);
   } catch (err) {
@@ -322,7 +313,7 @@ router.post('/issues/:id/comments', async (req, res) => {
 });
 
 // ── POST /api/companies/:cid/plans/generate (AI Plan Decomposition) ──
-router.post('/companies/:cid/plans/generate', async (req, res) => {
+router.post('/companies/:cid/plans/generate', requireCompanyMember, async (req, res) => {
   try {
     const { objective, context } = req.body;
     const prompt = `You are the Lead Strategic AI Planner for an autonomous software organization.

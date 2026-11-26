@@ -14,6 +14,11 @@ const approvalSchema = new mongoose.Schema(
       required: [true, 'Agent ID is required'],
       index: true,
     },
+    requestedByAgentId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Agent',
+      default: null,
+    },
     type: {
       type: String,
       enum: ['hire_agent', 'strategy_plan', 'budget_override'],
@@ -48,6 +53,16 @@ const approvalSchema = new mongoose.Schema(
     timestamps: true,
   }
 );
+
+approvalSchema.pre('validate', function (next) {
+  if (!this.agentId && this.requestedByAgentId) {
+    this.agentId = this.requestedByAgentId;
+  }
+  if (!this.requestedByAgentId && this.agentId) {
+    this.requestedByAgentId = this.agentId;
+  }
+  next();
+});
 
 approvalSchema.index({ companyId: 1, status: 1 });
 

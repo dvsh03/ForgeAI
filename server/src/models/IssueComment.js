@@ -28,9 +28,22 @@ const issueCommentSchema = new mongoose.Schema(
       ref: 'Agent',
       default: null,
     },
+    authorId: {
+      type: String,
+      default: null,
+    },
+    authorName: {
+      type: String,
+      default: '',
+      trim: true,
+    },
     content: {
       type: String,
       required: [true, 'Comment content is required'],
+      trim: true,
+    },
+    body: {
+      type: String,
       trim: true,
     },
     mentions: [
@@ -46,8 +59,21 @@ const issueCommentSchema = new mongoose.Schema(
   },
   {
     timestamps: false,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true },
   }
 );
+
+// Ensure content and body are always synchronized before validation
+issueCommentSchema.pre('validate', function (next) {
+  if (!this.content && this.body) {
+    this.content = this.body;
+  }
+  if (!this.body && this.content) {
+    this.body = this.content;
+  }
+  next();
+});
 
 // Crucial index for Delta-Only Comment Hydration (.skip(issue.lastHydratedCommentCount))
 issueCommentSchema.index({ issueId: 1, createdAt: 1 });

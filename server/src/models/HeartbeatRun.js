@@ -97,8 +97,14 @@ const heartbeatRunSchema = new mongoose.Schema(
   },
   {
     timestamps: false,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true },
   }
 );
+
+heartbeatRunSchema.virtual('issueId').get(function () {
+  return this.targetIssueId;
+});
 
 // Indexes
 heartbeatRunSchema.index({ companyId: 1, status: 1 });

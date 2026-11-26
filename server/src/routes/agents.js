@@ -5,6 +5,8 @@ const AgentConfigRevision = require('../models/AgentConfigRevision');
 const BudgetIncident = require('../models/BudgetIncident');
 const Issue = require('../models/Issue');
 const WakeupQueue = require('../models/WakeupQueue');
+const HeartbeatRun = require('../models/HeartbeatRun');
+const { executeHeartbeat } = require('../services/heartbeatEngine');
 const { authenticateJWT, requireCompanyMember } = require('../middleware/auth');
 const { recordActivity } = require('../middleware/auditLog');
 
@@ -295,6 +297,37 @@ router.post('/:agentId/invoke', async (req, res) => {
       payload: req.body.payload || {},
     });
 
+    const run = await HeartbeatRun.create({
+      companyId: req.agent.companyId,
+      agentId: req.agent._id,
+      targetIssueId,
+      wakeupQueueId: wakeup._id,
+      triggerType: 'manual',
+      status: 'running',
+      startedAt: new Date(),
+      logs: [
+        {
+          ts: new Date(),
+          level: 'system',
+          message: `Manual heartbeat invocation queued for ${req.agent.name}`,
+        },
+      ],
+    });
+
+    // Asynchronously trigger execution loop without blocking the HTTP response
+    setImmediate(() => {
+      executeHeartbeat({
+        agentId: req.agent._id,
+        companyId: req.agent.companyId,
+        triggerType: 'manual',
+        issueId: targetIssueId,
+        wakeupId: wakeup._id,
+        existingRunId: run._id,
+      }).catch((err) => {
+        console.error(`[Invoke] Background heartbeat execution failed: ${err.message}`);
+      });
+    });
+
     await recordActivity({
       companyId: req.agent.companyId,
       actorId: req.user._id,
@@ -302,11 +335,16 @@ router.post('/:agentId/invoke', async (req, res) => {
       action: 'invoke_agent',
       entityType: 'WakeupQueue',
       entityId: wakeup._id,
-      details: { agentId: req.agent._id, triggerType: 'manual' },
+      details: { agentId: req.agent._id, triggerType: 'manual', runId: run._id },
       ip: req.ip || '',
     });
 
-    return res.status(202).json({ wakeupId: wakeup._id, status: wakeup.status });
+    return res.status(202).json({
+      message: 'Agent heartbeat invocation started',
+      wakeupId: wakeup._id,
+      runId: run._id,
+      status: wakeup.status,
+    });
   } catch (err) {
     return res.status(500).json({ error: 'Failed to queue agent heartbeat', details: err.message });
   }
