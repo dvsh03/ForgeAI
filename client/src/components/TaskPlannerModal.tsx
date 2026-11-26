@@ -30,6 +30,7 @@ import {
   ListChecks,
 } from 'lucide-react';
 import { apiGet, apiPost, ApiError } from '../lib/api';
+import { useToast } from './ToastProvider';
 import type {
   Goal,
   Agent,
@@ -81,6 +82,7 @@ export default function TaskPlannerModal({
   initialGoalId,
 }: TaskPlannerModalProps) {
   const queryClient = useQueryClient();
+  const toast = useToast();
 
   // ── Form state ────────────────────────────────────────────
   const [objective, setObjective] = useState('');
@@ -119,9 +121,25 @@ export default function TaskPlannerModal({
         body,
       ),
     onSuccess: (data) => {
-      setTasks(data.plan.tasks);
-      setExpandedIdx(new Set(data.plan.tasks.map((_, i) => i)));
+      const enriched = data.plan.tasks.map((t) => {
+        if (!t.assigneeAgentId && t.assigneeRole && agentsQuery.data?.length) {
+          const matched = agentsQuery.data.find((a) =>
+            a.role.toLowerCase().includes(t.assigneeRole!.toLowerCase()),
+          );
+          if (matched) {
+            return {
+              ...t,
+              assigneeAgentId: matched._id,
+              assigneeName: matched.name,
+            };
+          }
+        }
+        return t;
+      });
+      setTasks(enriched);
+      setExpandedIdx(new Set(enriched.map((_, i) => i)));
       setStep('review');
+      toast.info('AI Plan Generated', `Review ${enriched.length} proposed tasks.`);
     },
   });
 
@@ -140,20 +158,27 @@ export default function TaskPlannerModal({
             priority: task.priority,
             assigneeAgentId: task.assigneeAgentId || undefined,
             status: 'backlog',
-            acceptanceCriteria: task.acceptanceCriteria.map((text) => ({
-              text,
-              completed: false,
-              met: false,
-            })),
+            acceptanceCriteria: task.acceptanceCriteria
+              .filter((text) => text.trim())
+              .map((text, idx) => ({
+                id: `ac_${Date.now()}_${idx}`,
+                text: text.trim(),
+                completed: false,
+                met: false,
+              })),
           },
         );
         created.push(issue);
       }
       return created;
     },
-    onSuccess: () => {
+    onSuccess: (created) => {
       // Invalidate the issues cache so the Kanban board refreshes
       queryClient.invalidateQueries({ queryKey: ['issues', companyId] });
+      toast.success(
+        'Tasks Committed to Board',
+        `Created ${created.length} new issue${created.length === 1 ? '' : 's'} in Backlog.`,
+      );
       handleReset();
       onClose();
     },

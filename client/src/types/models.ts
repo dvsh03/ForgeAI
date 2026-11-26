@@ -1,7 +1,7 @@
 // ─────────────────────────────────────────────────────────────
 // Paperclip MERN — Shared TypeScript Types
-// Strictly aligned with Document 5 (Backend Database Schema)
-// and Document 2 (Technical Requirements Document)
+// Strictly aligned with Document 5 (Backend Database Schema),
+// Document 2 (TRD), and Mongoose models in server/src/models/
 // ─────────────────────────────────────────────────────────────
 
 // ── Enums ──────────────────────────────────────────────────
@@ -42,6 +42,7 @@ export type ApprovalType = 'hire_agent' | 'strategy_plan' | 'budget_override';
 
 export type HeartbeatRunStatus =
   | 'running'
+  | 'completed'
   | 'succeeded'
   | 'failed'
   | 'budget_stopped'
@@ -54,14 +55,15 @@ export type WakeupTrigger =
   | 'cron'
   | 'approval_resolved';
 
-export type DeliverableKind = 'link' | 'markdown' | 'file';
+export type DeliverableKind = 'url' | 'link' | 'markdown' | 'file';
 
 export type AuthorType = 'user' | 'agent' | 'system';
 
 // ── Sub-document Interfaces ────────────────────────────────
 
-/** Single acceptance criterion on an Issue (Document 5 - §2.6) */
+/** Single acceptance criterion on an Issue (matches server/src/models/Issue.js) */
 export interface AcceptanceCriterion {
+  id?: string;
   _id?: string;
   text: string;
   completed: boolean;
@@ -69,31 +71,36 @@ export interface AcceptanceCriterion {
   met?: boolean;
 }
 
-/** Deliverable attachment on an Issue (Document 5 - §2.6) */
+/** Deliverable attachment on an Issue (supports Mongoose & legacy field aliases) */
 export interface Deliverable {
   _id?: string;
-  kind: DeliverableKind;
+  type?: 'url' | 'markdown' | 'file';
+  kind?: DeliverableKind;
+  title?: string;
   label?: string;
-  url: string;                  // URL, Cloudinary secure_url, or raw markdown link
+  contentOrUrl?: string;
+  url?: string;
   mimeType?: string;
   byteSize?: number;
+  addedAt?: string;
 }
 
 // ── Core Models ────────────────────────────────────────────
 
 export interface User {
   _id: string;
+  id?: string;
   name: string;
   email: string;
-  createdAt: string;
-  updatedAt: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface Company {
   _id: string;
   name: string;
   description?: string;
-  issuePrefix: string;         // e.g. "FORGE"
+  issuePrefix: string;         // e.g. "FORGE", "PAP"
   issueCounter: number;        // atomic $inc counter
   budgetMonthlyCents: number;  // $5.00 default (500)
   spentMonthlyMicrocents: number;
@@ -107,7 +114,7 @@ export interface Agent {
   _id: string;
   companyId: string;
   name: string;
-  role: AgentRole;
+  role: AgentRole | string;
   title?: string;
   reportsTo?: string | null;    // parent agent _id
   instructionsMarkdown: string;
@@ -142,8 +149,9 @@ export interface Goal {
 export interface Issue {
   _id: string;
   companyId: string;
-  identifier: string;           // e.g. "FORGE-1"
-  issueKey?: string;            // alias for identifier
+  identifier?: string;          // e.g. "FORGE-1"
+  issueKey?: string;            // Mongoose field in server/src/models/Issue.js
+  issueNumber?: number;
   title: string;
   description?: string;
   status: IssueStatus;
@@ -167,19 +175,40 @@ export interface IssueComment {
   companyId: string;
   issueId: string;
   authorType: AuthorType;
-  authorId: string;
+  authorId?: string;
+  authorUserId?: string | null;
+  authorAgentId?: string | null;
   authorName?: string;
-  body: string;
+  body?: string;
+  content?: string;
   createdAt: string;
   updatedAt?: string;
+}
+
+export interface RunLogEntry {
+  ts: string;
+  level:
+    | 'INFO'
+    | 'WARN'
+    | 'SYSTEM'
+    | 'THOUGHT'
+    | 'LLM_THOUGHT'
+    | 'TOOL'
+    | 'TOOL_CALL'
+    | 'BUDGET'
+    | 'ERROR'
+    | 'SUCCESS'
+    | string;
+  message: string;
 }
 
 export interface HeartbeatRun {
   _id: string;
   companyId: string;
-  agentId: string;
+  agentId: string | { _id?: string; name: string; role: string; title?: string };
   agent?: Agent | null;
-  issueId?: string | null;
+  issueId?: string | Issue | null;
+  targetIssueId?: string | Issue | null;
   issue?: Issue | null;
   triggerType: WakeupTrigger | string;
   status: HeartbeatRunStatus;
@@ -188,15 +217,10 @@ export interface HeartbeatRun {
   outputTokens: number;
   costMicrocents: number;
   startedAt: string;
+  endedAt?: string | null;
   finishedAt?: string | null;
   createdAt?: string;
   updatedAt?: string;
-}
-
-export interface RunLogEntry {
-  ts: string;
-  level: 'INFO' | 'SYSTEM' | 'THOUGHT' | 'LLM_THOUGHT' | 'TOOL_CALL' | 'BUDGET' | 'ERROR' | 'SUCCESS';
-  message: string;
 }
 
 export interface Approval {
@@ -212,6 +236,18 @@ export interface Approval {
   updatedAt: string;
 }
 
+export interface BudgetIncident {
+  _id: string;
+  companyId?: string;
+  agentId: string;
+  agentName?: string;
+  threshold?: number;
+  spentMonthlyMicrocents: number;
+  budgetMonthlyCents: number;
+  status?: 'open' | 'resolved';
+  resolutionNote?: string;
+}
+
 // ── API Payloads & Contracts ───────────────────────────────
 
 export interface QaReviewRequest {
@@ -220,6 +256,8 @@ export interface QaReviewRequest {
 }
 
 export interface CloudinarySignResponse {
+  mock?: boolean;
+  message?: string;
   timestamp: number;
   signature: string;
   apiKey: string;
@@ -240,6 +278,7 @@ export interface PlanTask {
   priority: IssuePriority;
   assigneeAgentId?: string;
   assigneeName?: string;
+  assigneeRole?: string;
   acceptanceCriteria: string[];
   estimatedMicrocents?: number;
 }

@@ -45,8 +45,9 @@ import {
   Target,
   X,
   ListChecks,
-  ChevronDown,
   Terminal,
+  Paperclip,
+  ShieldCheck,
 } from 'lucide-react';
 import { apiGet, apiPost, apiPatch, ApiError } from '../lib/api';
 import type {
@@ -59,6 +60,7 @@ import type {
 import TaskPlannerModal from '../components/TaskPlannerModal';
 import IssueDrawer from '../components/IssueDrawer';
 import RunConsole from '../components/RunConsole';
+import { useToast } from '../components/ToastProvider';
 
 // ── Column definitions ─────────────────────────────────────
 
@@ -146,6 +148,7 @@ export default function IssuesBoard({
   onIssueClick,
 }: IssuesBoardProps) {
   const queryClient = useQueryClient();
+  const toast = useToast();
 
   // ── Local UI state ────────────────────────────────────────
   const [searchQuery, setSearchQuery] = useState('');
@@ -204,12 +207,29 @@ export default function IssuesBoard({
     staleTime: 60_000,
   });
 
-  // ── Lookup map ────────────────────────────────────────────
+  // ── Lookup maps ───────────────────────────────────────────
   const agentMap = useMemo(() => {
     const m = new Map<string, Agent>();
     agentsQuery.data?.forEach((a) => m.set(a._id, a));
     return m;
   }, [agentsQuery.data]);
+
+  const goalMap = useMemo(() => {
+    const m = new Map<string, Goal>();
+    goalsQuery.data?.forEach((g) => m.set(g._id, g));
+    return m;
+  }, [goalsQuery.data]);
+
+  // Listen for Demo Seeder events from Sidebar or Dashboard
+  useEffect(() => {
+    const onSeeded = () => {
+      queryClient.invalidateQueries({ queryKey: ['issues', companyId] });
+      queryClient.invalidateQueries({ queryKey: ['agents', companyId] });
+      queryClient.invalidateQueries({ queryKey: ['goals', companyId] });
+    };
+    window.addEventListener('company:seeded', onSeeded);
+    return () => window.removeEventListener('company:seeded', onSeeded);
+  }, [companyId, queryClient]);
 
   // Keep selectedIssue synced with fresh query updates
   useEffect(() => {
@@ -284,10 +304,14 @@ export default function IssuesBoard({
       );
       return { prev };
     },
-    onError: (_err, _vars, ctx) => {
+    onError: (err, _vars, ctx) => {
       if (ctx?.prev) {
         queryClient.setQueryData(['issues', companyId], ctx.prev);
       }
+      toast.error(
+        'Status update blocked',
+        err instanceof ApiError ? err.message : 'Unable to move ticket',
+      );
     },
     onSettled: () => {
       queryClient.invalidateQueries({
@@ -308,6 +332,16 @@ export default function IssuesBoard({
       setNewAssigneeId('');
       setNewGoalId('');
       setSelectedIssue(newIssue);
+      toast.success(
+        'Ticket created',
+        `${newIssue.identifier || newIssue.issueKey || 'Issue'} added to Todo.`,
+      );
+    },
+    onError: (err) => {
+      toast.error(
+        'Failed to create ticket',
+        err instanceof Error ? err.message : undefined,
+      );
     },
   });
 
@@ -370,15 +404,16 @@ export default function IssuesBoard({
 
       // Cannot drag directly to "done" — must pass QA in "in_review"
       if (targetStatus === 'done' && issue.status !== 'in_review') {
-        alert(
-          'Evidence-Based QA Gate: Tasks must be placed in "In Review" and approved before being marked Done.',
+        toast.warning(
+          'Evidence-Based QA Gate',
+          'Tasks must pass through "In Review" and be approved before moving to Done.',
         );
         return;
       }
 
       statusMutation.mutate({ issueId, status: targetStatus });
     },
-    [issuesQuery.data, statusMutation],
+    [issuesQuery.data, statusMutation, toast],
   );
 
   const handleDragEnd = useCallback(() => {
@@ -569,13 +604,32 @@ export default function IssuesBoard({
         </div>
       )}
 
-      {/* ── Loading / Error states ────────────────────────── */}
+      {/* ── Loading Skeleton / Error states (Day 11) ─────── */}
       {issuesQuery.isLoading && (
-        <div className="flex flex-1 items-center justify-center">
-          <Loader2 className="h-6 w-6 animate-spin text-zinc-500" />
-          <span className="ml-2 text-sm text-zinc-500">
-            Loading issues…
-          </span>
+        <div className="flex flex-1 gap-4 overflow-x-auto px-5 py-4">
+          {COLUMNS.map((col) => (
+            <div
+              key={col.id}
+              className="flex min-w-[240px] max-w-[320px] flex-1 shrink-0 flex-col rounded-xl border border-zinc-800/40 bg-zinc-900/30 p-3"
+            >
+              <div className="mb-3 flex items-center gap-2">
+                <span className={`h-2.5 w-2.5 rounded-full ${col.headerColor}`} />
+                <div className="h-3 w-20 animate-pulse rounded bg-zinc-800" />
+              </div>
+              <div className="space-y-2">
+                {[0, 1].map((idx) => (
+                  <div
+                    key={idx}
+                    className="h-24 animate-pulse rounded-lg border border-zinc-800/60 bg-zinc-900/70 p-3"
+                  >
+                    <div className="h-2.5 w-16 rounded bg-zinc-800" />
+                    <div className="mt-2.5 h-3 w-full rounded bg-zinc-800" />
+                    <div className="mt-1.5 h-3 w-2/3 rounded bg-zinc-800/70" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
       )}
 
@@ -646,6 +700,9 @@ export default function IssuesBoard({
                     const agent = issue.assigneeAgentId
                       ? agentMap.get(issue.assigneeAgentId)
                       : null;
+                    const linkedGoal = issue.goalId
+                      ? goalMap.get(issue.goalId)
+                      : null;
                     const isLocked =
                       !!issue.lockedByRunId &&
                       new Date(issue.lockExpiresAt!) > new Date();
@@ -656,6 +713,7 @@ export default function IssuesBoard({
                       ).length ?? 0;
                     const totalCriteria =
                       issue.acceptanceCriteria?.length ?? 0;
+                    const deliverablesCount = issue.deliverables?.length ?? 0;
 
                     return (
                       <div
@@ -686,11 +744,20 @@ export default function IssuesBoard({
                           <div className="flex items-center gap-1.5">
                             {isLocked && (
                               <span
-                                className="flex items-center gap-1 text-[10px] text-blue-400 font-medium animate-pulse"
+                                className="flex items-center gap-1 text-[10px] font-medium text-blue-400 animate-pulse"
                                 title="Locked by an active heartbeat run"
                               >
                                 <Lock className="h-3 w-3" />
                                 Run Active
+                              </span>
+                            )}
+                            {issue.status === 'in_review' && (
+                              <span
+                                className="inline-flex items-center gap-1 rounded bg-purple-950/80 px-1.5 py-0.5 text-[9px] font-semibold text-purple-300 border border-purple-800/60"
+                                title="Click to review deliverables & approve"
+                              >
+                                <ShieldCheck className="h-2.5 w-2.5" />
+                                QA
                               </span>
                             )}
                             <span
@@ -712,27 +779,43 @@ export default function IssuesBoard({
                           </div>
                         </div>
 
-                        {/* Title (2-line clamped) */}
-                        <p className="mb-2 line-clamp-2 text-xs font-semibold leading-snug text-zinc-100">
+                        {/* Title (2-line clamped) + Goal tag */}
+                        <p className="mb-1.5 line-clamp-2 text-xs font-semibold leading-snug text-zinc-100">
                           {issue.title}
                         </p>
 
-                        {/* Bottom row: checklist progress + assignee */}
+                        {linkedGoal && (
+                          <p className="mb-2 inline-flex max-w-full items-center gap-1 truncate rounded bg-zinc-800/70 px-1.5 py-0.5 text-[10px] text-zinc-400">
+                            <Target className="h-2.5 w-2.5 shrink-0 text-violet-400" />
+                            <span className="truncate">{linkedGoal.title}</span>
+                          </p>
+                        )}
+
+                        {/* Bottom row: checklist progress + paperclip + assignee */}
                         <div className="flex items-center justify-between text-[11px]">
-                          {totalCriteria > 0 ? (
-                            <span
-                              className={`inline-flex items-center gap-1 ${
-                                checkedCount === totalCriteria
-                                  ? 'text-emerald-400 font-medium'
-                                  : 'text-zinc-500'
-                              }`}
-                            >
-                              <ListChecks className="h-3 w-3" />
-                              {checkedCount}/{totalCriteria}
-                            </span>
-                          ) : (
-                            <span />
-                          )}
+                          <div className="flex items-center gap-2">
+                            {totalCriteria > 0 && (
+                              <span
+                                className={`inline-flex items-center gap-1 ${
+                                  checkedCount === totalCriteria
+                                    ? 'font-medium text-emerald-400'
+                                    : 'text-zinc-500'
+                                }`}
+                              >
+                                <ListChecks className="h-3 w-3" />
+                                {checkedCount}/{totalCriteria}
+                              </span>
+                            )}
+                            {deliverablesCount > 0 && (
+                              <span
+                                className="inline-flex items-center gap-0.5 text-zinc-400"
+                                title={`${deliverablesCount} deliverable${deliverablesCount === 1 ? '' : 's'} attached`}
+                              >
+                                <Paperclip className="h-3 w-3 text-violet-400" />
+                                {deliverablesCount}
+                              </span>
+                            )}
+                          </div>
 
                           <div className="flex items-center gap-1.5">
                             {/* Live Console button if ticket is running */}
