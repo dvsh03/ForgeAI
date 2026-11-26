@@ -8,6 +8,7 @@ import {
   ShieldCheck,
   Bot,
 } from 'lucide-react';
+import { getApiUrl } from '../lib/api';
 
 interface AuthPageProps {
   onAuthSuccess: (user: { name: string; email: string }) => void;
@@ -30,7 +31,7 @@ export default function AuthPage({ onAuthSuccess }: AuthPageProps) {
       const endpoint = tab === 'login' ? '/api/auth/login' : '/api/auth/register';
       const payload = tab === 'login' ? { email, password } : { name, email, password };
 
-      const res = await fetch(endpoint, {
+      const res = await fetch(getApiUrl(endpoint), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),

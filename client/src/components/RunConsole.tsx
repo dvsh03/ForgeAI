@@ -12,13 +12,7 @@
 //   SYSTEM (Gray), THOUGHT (Cyan), TOOL_CALL (Amber), ERROR (Red), SUCCESS (Emerald)
 // ─────────────────────────────────────────────────────────────
 
-import {
-  useState,
-  useEffect,
-  useRef,
-  useCallback,
-  useMemo,
-} from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   X,
@@ -27,25 +21,14 @@ import {
   Clock,
   Coins,
   Cpu,
-  RotateCcw,
   Copy,
   Check,
-  ChevronDown,
   Pause,
-  Play,
-  Bot,
   AlertOctagon,
-  Sparkles,
   ArrowDownCircle,
-  FileCode,
 } from 'lucide-react';
-import { apiGet } from '../lib/api';
-import type {
-  HeartbeatRun,
-  RunLogEntry,
-  Agent,
-  Issue,
-} from '../types/models';
+import { apiGet, getApiUrl } from '../lib/api';
+import type { HeartbeatRun, RunLogEntry } from '../types/models';
 
 // ── Props ──────────────────────────────────────────────────
 
@@ -68,13 +51,18 @@ const LOG_LEVEL_STYLES: Record<
 > = {
   SYSTEM: {
     label: 'SYSTEM',
-    textClass: 'text-zinc-400',
-    badgeClass: 'bg-zinc-800 text-zinc-400 border-zinc-700',
+    textClass: 'text-slate-400',
+    badgeClass: 'bg-slate-800 text-slate-400 border-slate-700',
   },
   INFO: {
     label: 'INFO',
-    textClass: 'text-zinc-300',
-    badgeClass: 'bg-zinc-800 text-zinc-300 border-zinc-700',
+    textClass: 'text-slate-300',
+    badgeClass: 'bg-slate-800 text-slate-300 border-slate-700',
+  },
+  WARN: {
+    label: 'WARN',
+    textClass: 'text-amber-300',
+    badgeClass: 'bg-amber-950/80 text-amber-300 border-amber-800/60',
   },
   THOUGHT: {
     label: 'THOUGHT',
@@ -86,8 +74,13 @@ const LOG_LEVEL_STYLES: Record<
     textClass: 'text-cyan-300',
     badgeClass: 'bg-cyan-950/80 text-cyan-300 border-cyan-800/60',
   },
+  TOOL: {
+    label: 'TOOL_CALL',
+    textClass: 'text-amber-300',
+    badgeClass: 'bg-amber-950/80 text-amber-300 border-amber-800/60',
+  },
   TOOL_CALL: {
-    label: 'TOOL',
+    label: 'TOOL_CALL',
     textClass: 'text-amber-300',
     badgeClass: 'bg-amber-950/80 text-amber-300 border-amber-800/60',
   },
@@ -121,7 +114,6 @@ function formatMicrocents(mc: number): string {
 
 export default function RunConsole({
   runId,
-  companyId,
   issueId,
   onClose,
 }: RunConsoleProps) {
@@ -139,6 +131,15 @@ export default function RunConsole({
   const logsEndRef = useRef<HTMLDivElement>(null);
   const terminalBodyRef = useRef<HTMLDivElement>(null);
 
+  // Reset telemetry when switching runId
+  useEffect(() => {
+    setLogs([]);
+    setInputTokens(0);
+    setOutputTokens(0);
+    setCostMicrocents(0);
+    setElapsedSeconds(0);
+  }, [runId]);
+
   // ── Initial Snapshot Fetch ───────────────────────────────
   const runQuery = useQuery({
     queryKey: ['run', runId],
@@ -151,13 +152,21 @@ export default function RunConsole({
   useEffect(() => {
     if (runQuery.data) {
       if (runQuery.data.logs?.length) {
-        setLogs(runQuery.data.logs);
+        setLogs(
+          runQuery.data.logs.map((l) => ({
+            ...l,
+            level: (l.level || 'INFO').toUpperCase(),
+          })),
+        );
       }
       setInputTokens(runQuery.data.inputTokens || 0);
       setOutputTokens(runQuery.data.outputTokens || 0);
       setCostMicrocents(runQuery.data.costMicrocents || 0);
 
-      if (runQuery.data.status === 'succeeded') {
+      if (
+        runQuery.data.status === 'completed' ||
+        runQuery.data.status === 'succeeded'
+      ) {
         setStreamStatus('completed');
       } else if (
         runQuery.data.status === 'failed' ||
@@ -187,8 +196,7 @@ export default function RunConsole({
     setStreamStatus('connecting');
 
     const token = localStorage.getItem('token');
-    const apiBase = import.meta.env.VITE_API_URL ?? '';
-    const streamUrl = `${apiBase}/api/runs/${runId}/stream`;
+    const streamUrl = getApiUrl(`/api/runs/${runId}/stream`);
 
     // Connect via fetch reader to support Bearer JWT headers cleanly
     async function startStream() {
@@ -205,8 +213,9 @@ export default function RunConsole({
           signal: controller.signal,
         });
 
-        if (!res.ok) {
-          throw new Error(`SSE stream returned HTTP ${res.status}`);
+        const contentType = res.headers.get('content-type') || '';
+        if (!res.ok || !contentType.includes('text/event-stream')) {
+          throw new Error(`SSE stream unavailable (HTTP ${res.status})`);
         }
 
         setStreamStatus('streaming');
@@ -227,7 +236,7 @@ export default function RunConsole({
 
           for (const chunk of lines) {
             const rawEvent = chunk.trim();
-            if (!rawEvent) continue;
+            if (!rawEvent || rawEvent.startsWith(':')) continue;
 
             let eventType = 'message';
             let dataStr = '';
@@ -246,14 +255,24 @@ export default function RunConsole({
               const parsed = JSON.parse(dataStr);
 
               if (eventType === 'log') {
-                setLogs((prev) => [
-                  ...prev,
-                  {
+                setLogs((prev) => {
+                  const nextEntry: RunLogEntry = {
                     ts: parsed.ts || new Date().toISOString(),
                     level: (parsed.level || 'INFO').toUpperCase(),
                     message: parsed.message || '',
-                  },
-                ]);
+                  };
+                  // Avoid duplicate lines if historical snapshot overlapped
+                  if (
+                    prev.some(
+                      (p) =>
+                        p.ts === nextEntry.ts &&
+                        p.message === nextEntry.message,
+                    )
+                  ) {
+                    return prev;
+                  }
+                  return [...prev, nextEntry];
+                });
               } else if (eventType === 'usage') {
                 if (parsed.inputTokens !== undefined)
                   setInputTokens(parsed.inputTokens);
@@ -263,7 +282,9 @@ export default function RunConsole({
                   setCostMicrocents(parsed.costMicrocents);
               } else if (eventType === 'done') {
                 setStreamStatus(
-                  parsed.status === 'succeeded' ? 'completed' : 'failed',
+                  parsed.status === 'completed' || parsed.status === 'succeeded'
+                    ? 'completed'
+                    : 'failed',
                 );
               }
             } catch (err) {
@@ -273,12 +294,16 @@ export default function RunConsole({
         }
 
         if (!aborted) {
-          setStreamStatus((curr) => (curr === 'streaming' ? 'completed' : curr));
+          setStreamStatus((curr) =>
+            curr === 'streaming' ? 'completed' : curr,
+          );
         }
-      } catch (err: unknown) {
+      } catch {
         if (aborted) return;
-        console.error('SSE Stream error:', err);
-        setStreamStatus('failed');
+        // Offline / preview mode fallback: rely on snapshot from apiGet('/api/runs/:id')
+        setStreamStatus((curr) =>
+          curr === 'connecting' ? 'completed' : 'failed',
+        );
       }
     }
 
@@ -313,8 +338,15 @@ export default function RunConsole({
   if (!runId) return null;
 
   const runData = runQuery.data;
-  const agentName = runData?.agent?.name || 'Worker Agent';
-  const issueKey = runData?.issue?.identifier || runData?.issue?.issueKey || issueId;
+  const agentName =
+    (typeof runData?.agentId === 'object' && runData.agentId?.name) ||
+    runData?.agent?.name ||
+    'Worker Agent';
+  const linkedIssue =
+    (typeof runData?.targetIssueId === 'object' && runData.targetIssueId) ||
+    (typeof runData?.issueId === 'object' && runData.issueId) ||
+    runData?.issue;
+  const issueKey = linkedIssue?.identifier || linkedIssue?.issueKey || issueId;
 
   // Format timer
   const mm = String(Math.floor(elapsedSeconds / 60)).padStart(2, '0');
@@ -329,9 +361,9 @@ export default function RunConsole({
       />
 
       {/* Terminal Drawer (520px wide, #0F172A slate theme) */}
-      <div className="relative z-10 flex h-full w-full max-w-[540px] flex-col border-l border-slate-800 bg-[#0F172A] text-slate-100 shadow-2xl font-mono">
+      <div className="relative z-10 flex h-full w-full max-w-[520px] flex-col border-l border-slate-800 bg-[#0F172A] font-mono text-slate-100 shadow-2xl">
         {/* ── Terminal Header ────────────────────────────── */}
-        <div className="flex items-center justify-between border-b border-slate-800 px-5 py-3.5 bg-[#090E1A]">
+        <div className="flex items-center justify-between border-b border-slate-800 bg-[#090E1A] px-5 py-3.5">
           <div className="flex items-center gap-3">
             <div className="flex h-7 w-7 items-center justify-center rounded bg-slate-800 text-cyan-400">
               <Terminal className="h-4 w-4" />
@@ -342,7 +374,7 @@ export default function RunConsole({
                   {agentName}
                 </span>
                 {issueKey && (
-                  <span className="rounded bg-slate-800/80 px-1.5 py-0.5 text-[10px] text-slate-400 font-semibold">
+                  <span className="rounded bg-slate-800/80 px-1.5 py-0.5 text-[10px] font-semibold text-slate-400">
                     {issueKey}
                   </span>
                 )}
@@ -356,7 +388,7 @@ export default function RunConsole({
           <div className="flex items-center gap-2">
             {/* Live Streaming Indicator */}
             {streamStatus === 'streaming' ? (
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-blue-500/40 bg-blue-500/10 px-2 py-0.5 text-[10px] font-semibold text-blue-400 animate-pulse">
+              <span className="inline-flex animate-pulse items-center gap-1.5 rounded-full border border-blue-500/40 bg-blue-500/10 px-2 py-0.5 text-[10px] font-semibold text-blue-400">
                 <Circle className="h-2 w-2 fill-blue-400" />
                 Live
               </span>
@@ -377,6 +409,7 @@ export default function RunConsole({
             )}
 
             <button
+              type="button"
               onClick={onClose}
               className="rounded p-1 text-slate-400 transition-colors hover:bg-slate-800 hover:text-slate-200"
             >
@@ -427,20 +460,20 @@ export default function RunConsole({
           </div>
         </div>
 
-        {/* ── Console Action Bar (Auto-scroll, Copy, Clear) ─ */}
-        <div className="flex items-center justify-between border-b border-slate-800/80 px-5 py-2 text-[11px] bg-[#0E1626]">
+        {/* ── Console Action Bar (Auto-scroll, Copy) ─────── */}
+        <div className="flex items-center justify-between border-b border-slate-800/80 bg-[#0E1626] px-5 py-2 text-[11px]">
           <span className="text-slate-500">
             {logs.length} stream event{logs.length !== 1 ? 's' : ''}
           </span>
 
           <div className="flex items-center gap-3">
             <button
+              type="button"
               onClick={() => setAutoScroll((p) => !p)}
-              className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 transition-colors ${
-                autoScroll
-                  ? 'bg-cyan-950 text-cyan-300 border border-cyan-800/50'
+              className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 transition-colors ${autoScroll
+                  ? 'border border-cyan-800/50 bg-cyan-950 text-cyan-300'
                   : 'text-slate-500 hover:text-slate-300'
-              }`}
+                }`}
               title="Toggle Auto-Scroll"
             >
               {autoScroll ? (
@@ -452,6 +485,7 @@ export default function RunConsole({
             </button>
 
             <button
+              type="button"
               onClick={handleCopyLogs}
               className="inline-flex items-center gap-1 text-slate-400 hover:text-slate-200"
               title="Copy all logs"
@@ -469,11 +503,12 @@ export default function RunConsole({
         {/* ── Terminal Event Log Body ────────────────────── */}
         <div
           ref={terminalBodyRef}
-          className="flex-1 overflow-y-auto p-4 space-y-2 text-xs leading-relaxed font-mono bg-[#090E1A]"
+          className="flex-1 space-y-2 overflow-y-auto bg-[#090E1A] p-4 font-mono text-xs leading-relaxed"
         >
           {logs.map((log, idx) => {
+            const levelKey = (log.level || 'INFO').toUpperCase();
             const levelStyle =
-              LOG_LEVEL_STYLES[log.level] ?? LOG_LEVEL_STYLES.INFO;
+              LOG_LEVEL_STYLES[levelKey] ?? LOG_LEVEL_STYLES.INFO;
             const timeStr = new Date(log.ts).toLocaleTimeString([], {
               hour12: false,
               hour: '2-digit',
@@ -484,23 +519,23 @@ export default function RunConsole({
             return (
               <div
                 key={idx}
-                className="flex items-start gap-2.5 rounded px-2 py-1 hover:bg-slate-900/60 transition-colors"
+                className="flex items-start gap-2.5 rounded px-2 py-1 transition-colors hover:bg-slate-900/60"
               >
                 {/* Timestamp */}
-                <span className="shrink-0 text-[10px] text-slate-600 select-none">
+                <span className="shrink-0 select-none text-[10px] text-slate-600">
                   {timeStr}
                 </span>
 
                 {/* Level Tag */}
                 <span
-                  className={`shrink-0 rounded border px-1.5 py-0.2 text-[9px] font-bold tracking-wider select-none ${levelStyle.badgeClass}`}
+                  className={`shrink-0 select-none rounded border px-1.5 py-0.5 text-[9px] font-bold tracking-wider ${levelStyle.badgeClass}`}
                 >
                   {levelStyle.label}
                 </span>
 
                 {/* Log message */}
                 <span
-                  className={`flex-1 break-words whitespace-pre-wrap ${levelStyle.textClass}`}
+                  className={`flex-1 whitespace-pre-wrap break-words ${levelStyle.textClass}`}
                 >
                   {log.message}
                 </span>
@@ -509,8 +544,8 @@ export default function RunConsole({
           })}
 
           {logs.length === 0 && (
-            <div className="flex h-48 flex-col items-center justify-center text-center text-slate-600 text-xs">
-              <Terminal className="h-8 w-8 mb-2 opacity-40" />
+            <div className="flex h-48 flex-col items-center justify-center text-center text-xs text-slate-600">
+              <Terminal className="mb-2 h-8 w-8 opacity-40" />
               <p>Waiting for agent SSE stream events…</p>
             </div>
           )}
