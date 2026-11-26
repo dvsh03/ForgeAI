@@ -258,10 +258,17 @@ async function executeHeartbeat({
 
   onLog('SYSTEM', `Agent [${agent.name}] (${agent.role}) woke up via ${triggerType} trigger.`);
 
-  // Flip agent status to 'running'
-  agent.status = 'running';
-  agent.lastHeartbeatAt = new Date();
-  await agent.save();
+  // Flip agent status to 'running' only if not paused or terminated
+  const currentAgentState = await Agent.findById(agent._id);
+  if (!currentAgentState || currentAgentState.status === 'paused' || currentAgentState.status === 'terminated') {
+    onLog('WARN', `Aborting heartbeat: agent status is ${currentAgentState?.status}`);
+    return run;
+  }
+
+  await Agent.updateOne(
+    { _id: agent._id, status: { $nin: ['paused', 'terminated', 'budget_stopped'] } },
+    { $set: { status: 'running', lastHeartbeatAt: new Date() } }
+  );
 
   // Mark WakeupQueue entry as running if provided
   if (wakeupId) {
@@ -452,11 +459,11 @@ Operating Rules:
       onLog('SYSTEM', `Updated delta hydration cursor to ${totalCommentsHydratedCount} comments. Lock released.`);
     }
 
-    // If agent is not budget_stopped, reset to idle
-    if (updatedAgent.status !== 'budget_stopped') {
-      updatedAgent.status = 'idle';
-      await updatedAgent.save();
-    }
+    // If agent is not budget_stopped, reset to idle only if not paused or terminated
+    await Agent.updateOne(
+      { _id: agent._id, status: { $nin: ['paused', 'terminated', 'budget_stopped'] } },
+      { $set: { status: 'idle' } }
+    );
 
     if (run.status !== 'budget_stopped') {
       run.status = 'completed';
@@ -477,10 +484,11 @@ Operating Rules:
       });
     }
 
-    // Reset agent status to idle unless budget_stopped
-    await Agent.findByIdAndUpdate(agent._id, {
-      $set: { status: agent.status === 'budget_stopped' ? 'budget_stopped' : 'idle' }
-    });
+    // Reset agent status to idle unless budget_stopped, paused, or terminated
+    await Agent.updateOne(
+      { _id: agent._id, status: { $nin: ['paused', 'terminated', 'budget_stopped'] } },
+      { $set: { status: 'idle' } }
+    );
   } finally {
     run.finishedAt = new Date();
     await run.save();
