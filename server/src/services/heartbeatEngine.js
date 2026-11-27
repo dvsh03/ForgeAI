@@ -71,6 +71,7 @@ async function executeToolAction({ toolCall, agent, currentIssue, run, onLog }) 
           companyId: agent.companyId,
           agentId: subAgent._id,
           triggerType: 'assignment',
+          targetIssueId: childIssue._id,
           payload: { issueId: childIssue._id, subtaskOf: currentIssue ? currentIssue._id : null }
         });
         onLog('SYSTEM', `Enqueued assignment wakeup for subordinate agent: ${subAgent.name}`);
@@ -103,11 +104,12 @@ async function executeToolAction({ toolCall, agent, currentIssue, run, onLog }) 
       if (mentionMatches) {
         for (const mention of mentionMatches) {
           const targetNameOrRole = mention.replace('@', '').toLowerCase();
+          const escapedToken = targetNameOrRole.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
           const targetAgent = await Agent.findOne({
             companyId: agent.companyId,
             $or: [
-              { role: targetNameOrRole },
-              { name: new RegExp(`^${targetNameOrRole}$`, 'i') }
+              { role: new RegExp(`^${escapedToken}$`, 'i') },
+              { name: new RegExp(`^${escapedToken}`, 'i') }
             ]
           });
           if (targetAgent && String(targetAgent._id) !== String(agent._id)) {
@@ -205,7 +207,28 @@ async function executeHeartbeat({
   // Stage 1 & 2: Pre-Flight Concurrency & Budget Gate
   const preCheck = await canAgentExecute(companyId, agentId, triggerType);
   if (!preCheck.allowed) {
-    throw new Error(`Execution blocked by pre-flight gate: ${preCheck.reason}`);
+    const blockMessage = `Execution blocked by pre-flight gate: ${preCheck.reason}`;
+    if (existingRunId && mongoose.Types.ObjectId.isValid(existingRunId)) {
+      const blockedStatus = preCheck.reason === 'BUDGET_EXCEEDED' ? 'budget_stopped' : 'failed';
+      await HeartbeatRun.findByIdAndUpdate(existingRunId, {
+        $set: { status: blockedStatus, endedAt: new Date(), errorMessage: blockMessage },
+        $push: { logs: { ts: new Date(), level: 'error', message: blockMessage } }
+      }).catch(() => {});
+      runEventBus.emit(`run:${existingRunId}`, {
+        event: 'done',
+        data: { status: blockedStatus }
+      });
+    }
+    if (wakeupId) {
+      const shouldRequeue =
+        triggerType !== 'manual' &&
+        ['COOLDOWN_ACTIVE', 'CONCURRENCY_LIMIT_REACHED', 'AGENT_ALREADY_RUNNING'].includes(preCheck.reason);
+      await WakeupQueue.findByIdAndUpdate(
+        wakeupId,
+        shouldRequeue ? { status: 'queued' } : { status: 'failed', processedAt: new Date() }
+      ).catch(() => {});
+    }
+    throw new Error(blockMessage);
   }
 
   const agent = preCheck.agent;
@@ -258,21 +281,30 @@ async function executeHeartbeat({
 
   onLog('SYSTEM', `Agent [${agent.name}] (${agent.role}) woke up via ${triggerType} trigger.`);
 
-  // Flip agent status to 'running' only if not paused or terminated
+  // Flip agent status to 'running' only if not paused, terminated, or budget_stopped
   const currentAgentState = await Agent.findById(agent._id);
-  if (!currentAgentState || currentAgentState.status === 'paused' || currentAgentState.status === 'terminated') {
-    onLog('WARN', `Aborting heartbeat: agent status is ${currentAgentState?.status}`);
+  if (!currentAgentState || ['paused', 'terminated', 'budget_stopped'].includes(currentAgentState.status)) {
+    const abortMsg = `Aborting heartbeat: agent status is ${currentAgentState?.status || 'missing'}`;
+    onLog('WARN', abortMsg);
+    run.status = currentAgentState?.status === 'budget_stopped' ? 'budget_stopped' : 'failed';
+    run.errorMessage = abortMsg;
+    run.endedAt = new Date();
+    await run.save();
+    if (wakeupId) {
+      await WakeupQueue.findByIdAndUpdate(wakeupId, { status: 'failed', processedAt: new Date() }).catch(() => {});
+    }
+    runEventBus.emit(`run:${run._id}`, { event: 'done', data: { status: run.status } });
     return run;
   }
 
   await Agent.updateOne(
     { _id: agent._id, status: { $nin: ['paused', 'terminated', 'budget_stopped'] } },
-    { $set: { status: 'running', lastHeartbeatAt: new Date() } }
+    { $set: { status: 'running', lastHeartbeatAt: new Date(), lastActiveAt: new Date() } }
   );
 
-  // Mark WakeupQueue entry as running if provided
+  // Mark WakeupQueue entry as processing if provided
   if (wakeupId) {
-    await WakeupQueue.findByIdAndUpdate(wakeupId, { status: 'running' });
+    await WakeupQueue.findByIdAndUpdate(wakeupId, { status: 'processing' });
   }
 
   let lockedIssue = null;
@@ -283,12 +315,14 @@ async function executeHeartbeat({
     let targetIssueId = issueId;
     if (!targetIssueId) {
       // Find highest priority assigned issue in backlog or todo
-      const candidate = await Issue.findOne({
+      const candidates = await Issue.find({
         companyId,
         assigneeAgentId: agent._id,
         status: { $in: ['todo', 'backlog'] }
-      }).sort({ priority: -1, createdAt: 1 });
-      if (candidate) targetIssueId = candidate._id;
+      }).sort({ createdAt: 1 });
+      const priorityRank = { urgent: 4, high: 3, medium: 2, low: 1 };
+      candidates.sort((a, b) => (priorityRank[b.priority] || 0) - (priorityRank[a.priority] || 0));
+      if (candidates.length > 0) targetIssueId = candidates[0]._id;
     }
 
     if (targetIssueId) {
@@ -399,8 +433,8 @@ Operating Rules:
       companyId,
       agentId: agent._id,
       runId: run._id,
-      adapter: adapterResult.providerUsed || agent.adapterType,
-      model: agent.adapterConfig?.model || 'unknown',
+      adapter: adapterResult.providerUsed || agent.adapter || agent.adapterType || 'groq_llm',
+      model: adapterResult.modelUsed || agent.model || agent.adapterConfig?.model || 'unknown',
       inputTokens,
       outputTokens,
       costMicrocents
@@ -473,6 +507,7 @@ Operating Rules:
   } catch (error) {
     onLog('ERROR', `Heartbeat error: ${error.message}`);
     run.status = 'failed';
+    run.errorMessage = error.message;
 
     // Ensure locks are safely released on failure
     if (lockedIssue) {
@@ -490,12 +525,15 @@ Operating Rules:
       { $set: { status: 'idle' } }
     );
   } finally {
-    run.finishedAt = new Date();
+    run.endedAt = new Date();
     await run.save();
 
-    // Mark WakeupQueue entry complete
+    // Mark WakeupQueue entry complete or failed
     if (wakeupId) {
-      await WakeupQueue.findByIdAndUpdate(wakeupId, { status: 'completed' });
+      await WakeupQueue.findByIdAndUpdate(wakeupId, {
+        status: run.status === 'failed' ? 'failed' : 'completed',
+        processedAt: new Date()
+      });
     }
 
     // Emit final 'done' SSE event

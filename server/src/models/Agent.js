@@ -63,7 +63,7 @@ const agentSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['idle', 'running', 'paused', 'budget_stopped'],
+      enum: ['idle', 'running', 'paused', 'budget_stopped', 'terminated'],
       default: 'idle',
       index: true,
     },
@@ -80,6 +80,10 @@ const agentSchema = new mongoose.Schema(
       type: Number,
       default: 0, // Microcents: 1 cent = 10,000 microcents
       min: 0,
+    },
+    lastHeartbeatAt: {
+      type: Date,
+      default: null,
     },
     lastActiveAt: {
       type: Date,

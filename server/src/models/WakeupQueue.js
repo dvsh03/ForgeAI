@@ -16,7 +16,7 @@ const wakeupQueueSchema = new mongoose.Schema(
     },
     triggerType: {
       type: String,
-      enum: ['manual', 'assignment', 'mention', 'schedule', 'dependency_resolved'],
+      enum: ['manual', 'assignment', 'mention', 'cron', 'schedule', 'approval_resolved', 'dependency_resolved'],
       required: [true, 'Trigger type is required'],
     },
     targetIssueId: {

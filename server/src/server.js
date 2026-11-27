@@ -2,6 +2,7 @@ require('dotenv').config();
 const app = require('./app');
 const { connectDB, disconnectDB } = require('./config/db');
 const { startWatchdog, stopWatchdog } = require('./services/watchdog');
+const { startWakeupWorker, stopWakeupWorker } = require('./services/wakeupQueue');
 
 const PORT = process.env.PORT || 5000;
 
@@ -12,8 +13,9 @@ const startServer = async () => {
     // Connect to database
     await connectDB();
 
-    // Start 30-second Zombie Lock Watchdog service
+    // Start 30-second Zombie Lock Watchdog and WakeupQueue consumer
     startWatchdog();
+    startWakeupWorker();
 
     server = app.listen(PORT, () => {
       console.log(`=================================================`);
@@ -33,6 +35,7 @@ const startServer = async () => {
 const shutdown = async (signal) => {
   console.log(`\n[Server] Received ${signal}. Initiating graceful shutdown...`);
   stopWatchdog();
+  stopWakeupWorker();
   if (server) {
     server.close(async () => {
       console.log('[Server] HTTP listener closed.');

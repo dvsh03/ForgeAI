@@ -2,6 +2,19 @@ const { WakeupQueue, Agent, Company, HeartbeatRun, BudgetIncident } = require('.
 
 const MAX_CONCURRENT_HEARTBEATS_PER_COMPANY = 2;
 const AUTO_WAKEUP_COOLDOWN_MS = 30 * 1000; // 30 seconds cooldown for automated wakeups
+const WAKEUP_POLL_INTERVAL_MS = 5000; // 5 seconds periodic queue poll
+
+let wakeupWorkerTimer = null;
+let isDrainingWakeups = false;
+
+function scheduleImmediateWakeupDrain() {
+  if (!wakeupWorkerTimer) return;
+  setImmediate(() => {
+    processPendingWakeups().catch((err) => {
+      console.error(`[WakeupWorker] Drain error: ${err.message}`);
+    });
+  });
+}
 
 /**
  * Enqueue a wakeup for an agent with duplicate-trigger coalescing
@@ -9,11 +22,18 @@ const AUTO_WAKEUP_COOLDOWN_MS = 30 * 1000; // 30 seconds cooldown for automated 
  * @param {Object} params
  * @param {string|ObjectId} params.companyId
  * @param {string|ObjectId} params.agentId
- * @param {'manual'|'assignment'|'mention'|'cron'|'approval_resolved'} params.triggerType
+ * @param {'manual'|'assignment'|'mention'|'cron'|'schedule'|'approval_resolved'|'dependency_resolved'} params.triggerType
+ * @param {string|ObjectId} [params.targetIssueId]
  * @param {Object} [params.payload]
  * @returns {Promise<Object>} Queued or coalesced WakeupQueue doc
  */
-async function enqueueWakeup({ companyId, agentId, triggerType, payload = {} }) {
+async function enqueueWakeup({ companyId, agentId, triggerType, targetIssueId = null, payload = {} }) {
+  const resolvedTargetIssueId = targetIssueId || (payload && payload.issueId) || null;
+  const mergedPayloadInput =
+    resolvedTargetIssueId && !(payload && payload.issueId)
+      ? { ...payload, issueId: resolvedTargetIssueId }
+      : { ...payload };
+
   // Check if agent already has a pending 'queued' wakeup
   const existingQueued = await WakeupQueue.findOne({
     companyId,
@@ -24,12 +44,16 @@ async function enqueueWakeup({ companyId, agentId, triggerType, payload = {} }) 
   if (existingQueued) {
     // Coalesce: Merge payload and increment count
     existingQueued.coalescedCount += 1;
+    if (resolvedTargetIssueId && !existingQueued.targetIssueId) {
+      existingQueued.targetIssueId = resolvedTargetIssueId;
+    }
     existingQueued.payload = {
       ...existingQueued.payload,
-      ...payload,
+      ...mergedPayloadInput,
       lastMergedAt: new Date()
     };
     await existingQueued.save();
+    scheduleImmediateWakeupDrain();
     return { wakeup: existingQueued, coalesced: true };
   }
 
@@ -38,11 +62,13 @@ async function enqueueWakeup({ companyId, agentId, triggerType, payload = {} }) 
     companyId,
     agentId,
     triggerType,
+    targetIssueId: resolvedTargetIssueId,
     status: 'queued',
     coalescedCount: 1,
-    payload
+    payload: mergedPayloadInput
   });
 
+  scheduleImmediateWakeupDrain();
   return { wakeup: newWakeup, coalesced: false };
 }
 
@@ -140,10 +166,113 @@ async function getNextEligibleWakeup(companyId) {
   return null;
 }
 
+/**
+ * Claims and executes eligible queued wakeups across companies
+ */
+async function processPendingWakeups({ maxDispatches = 5, runExecutor = null } = {}) {
+  if (isDrainingWakeups) return 0;
+  isDrainingWakeups = true;
+
+  try {
+    const execute = runExecutor || require('./heartbeatEngine').executeHeartbeat;
+    const companyIds = await WakeupQueue.distinct('companyId', { status: 'queued' });
+    const dispatchedTasks = [];
+
+    for (const companyId of companyIds) {
+      while (dispatchedTasks.length < maxDispatches) {
+        const eligible = await getNextEligibleWakeup(companyId);
+        if (!eligible) break;
+
+        const claimed = await WakeupQueue.findOneAndUpdate(
+          { _id: eligible.wakeup._id, status: 'queued' },
+          { $set: { status: 'processing' } },
+          { new: true }
+        );
+        if (!claimed) continue;
+
+        const targetIssueId = claimed.targetIssueId || (claimed.payload && claimed.payload.issueId) || null;
+        const run = await HeartbeatRun.create({
+          companyId: claimed.companyId,
+          agentId: claimed.agentId,
+          targetIssueId,
+          wakeupQueueId: claimed._id,
+          triggerType: claimed.triggerType,
+          status: 'running',
+          startedAt: new Date(),
+          logs: [
+            {
+              ts: new Date(),
+              level: 'system',
+              message: `Queued ${claimed.triggerType} wakeup dispatched for execution`
+            }
+          ]
+        });
+
+        const task = execute({
+          agentId: claimed.agentId,
+          companyId: claimed.companyId,
+          triggerType: claimed.triggerType,
+          issueId: targetIssueId,
+          wakeupId: claimed._id,
+          existingRunId: run._id
+        }).catch(async (err) => {
+          console.error(`[WakeupWorker] Execution failed for wakeup ${claimed._id}: ${err.message}`);
+          await HeartbeatRun.updateOne(
+            { _id: run._id, status: 'running' },
+            {
+              $set: { status: 'failed', endedAt: new Date(), errorMessage: err.message },
+              $push: { logs: { ts: new Date(), level: 'error', message: err.message } }
+            }
+          ).catch(() => {});
+          await WakeupQueue.updateOne(
+            { _id: claimed._id, status: 'processing' },
+            { $set: { status: 'failed', processedAt: new Date() } }
+          ).catch(() => {});
+        });
+
+        dispatchedTasks.push(task);
+      }
+    }
+
+    if (dispatchedTasks.length > 0) {
+      await Promise.allSettled(dispatchedTasks);
+    }
+
+    return dispatchedTasks.length;
+  } finally {
+    isDrainingWakeups = false;
+  }
+}
+
+function startWakeupWorker(intervalMs = WAKEUP_POLL_INTERVAL_MS) {
+  if (wakeupWorkerTimer) return;
+  console.log('[WakeupWorker] Starting WakeupQueue background consumer...');
+  processPendingWakeups().catch((err) => {
+    console.error(`[WakeupWorker] Initial drain error: ${err.message}`);
+  });
+  wakeupWorkerTimer = setInterval(() => {
+    processPendingWakeups().catch((err) => {
+      console.error(`[WakeupWorker] Poll error: ${err.message}`);
+    });
+  }, intervalMs);
+}
+
+function stopWakeupWorker() {
+  if (wakeupWorkerTimer) {
+    clearInterval(wakeupWorkerTimer);
+    wakeupWorkerTimer = null;
+    console.log('[WakeupWorker] Stopped WakeupQueue background consumer.');
+  }
+}
+
 module.exports = {
   MAX_CONCURRENT_HEARTBEATS_PER_COMPANY,
   AUTO_WAKEUP_COOLDOWN_MS,
+  WAKEUP_POLL_INTERVAL_MS,
   enqueueWakeup,
   canAgentExecute,
-  getNextEligibleWakeup
+  getNextEligibleWakeup,
+  processPendingWakeups,
+  startWakeupWorker,
+  stopWakeupWorker
 };

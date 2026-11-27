@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 const express = require('express');
 const router = express.Router();
-const { HeartbeatRun, Agent } = require('../models');
+const { HeartbeatRun, Agent, Company, Issue, BudgetIncident } = require('../models');
 const { runEventBus, executeHeartbeat } = require('../services/heartbeatEngine');
 const { enqueueWakeup } = require('../services/wakeupQueue');
 const { authenticateJWT, requireCompanyMember } = require('../middleware/auth');
@@ -16,16 +16,21 @@ router.get('/', async (req, res) => {
   try {
     const { companyId } = req.query;
     const filter = {};
-    if (companyId && mongoose.Types.ObjectId.isValid(companyId)) {
-      filter.companyId = companyId;
+    if (companyId) {
       req.companyId = companyId;
       await new Promise((resolve, reject) => {
         requireCompanyMember(req, res, (err) => (err ? reject(err) : resolve()));
       });
       if (res.headersSent) return;
+      filter.companyId = req.company._id;
+    } else {
+      const accessibleCompanies = await Company.find({
+        $or: [{ ownerUserId: req.user._id }, { 'members.userId': req.user._id }],
+      }).distinct('_id');
+      filter.companyId = { $in: accessibleCompanies };
     }
     const runs = await HeartbeatRun.find(filter)
-      .sort({ createdAt: -1 })
+      .sort({ startedAt: -1 })
       .limit(20)
       .populate('agentId', 'name role')
       .populate('targetIssueId', 'identifier title issueKey status')
@@ -157,6 +162,9 @@ router.post('/agents/:id/invoke', async (req, res) => {
   const { issueId } = req.body;
 
   try {
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ error: 'Invalid agent ID format' });
+    }
     const agent = await Agent.findById(id);
     if (!agent) {
       return res.status(404).json({ error: 'Agent not found' });
@@ -168,18 +176,55 @@ router.post('/agents/:id/invoke', async (req, res) => {
     });
     if (res.headersSent) return;
 
+    if (agent.status === 'paused' || agent.status === 'terminated') {
+      return res.status(409).json({ error: 'This agent cannot be invoked in its current status' });
+    }
+
+    const budgetLimitMicrocents = (agent.budgetMonthlyCents || 100) * 10000;
+    if ((agent.spentMonthlyMicrocents || 0) >= budgetLimitMicrocents) {
+      agent.status = 'budget_stopped';
+      await agent.save();
+      await BudgetIncident.updateOne(
+        { agentId: agent._id, companyId: agent.companyId, status: 'open' },
+        {
+          $setOnInsert: {
+            agentId: agent._id,
+            companyId: agent.companyId,
+            threshold: 100,
+            spentMonthlyMicrocents: agent.spentMonthlyMicrocents || 0,
+            budgetMonthlyCents: agent.budgetMonthlyCents || 100,
+          },
+        },
+        { upsert: true }
+      );
+      return res.status(409).json({ error: 'Agent monthly budget is exhausted' });
+    }
+
+    let validIssueId = null;
+    if (issueId !== undefined && issueId !== null) {
+      if (!mongoose.Types.ObjectId.isValid(issueId)) {
+        return res.status(400).json({ error: 'Invalid issue ID format' });
+      }
+      const targetIssue = await Issue.findOne({ _id: issueId, companyId: agent.companyId });
+      if (!targetIssue) {
+        return res.status(404).json({ error: 'Issue not found in this company' });
+      }
+      validIssueId = targetIssue._id;
+    }
+
     // Enqueue manual wakeup
     const { wakeup } = await enqueueWakeup({
       companyId: agent.companyId,
       agentId: agent._id,
       triggerType: 'manual',
-      payload: { issueId }
+      targetIssueId: validIssueId,
+      payload: validIssueId ? { issueId: validIssueId } : {}
     });
 
     const run = await HeartbeatRun.create({
       companyId: agent.companyId,
       agentId: agent._id,
-      targetIssueId: issueId || null,
+      targetIssueId: validIssueId,
       wakeupQueueId: wakeup._id,
       triggerType: 'manual',
       status: 'running',
@@ -199,7 +244,7 @@ router.post('/agents/:id/invoke', async (req, res) => {
         agentId: agent._id,
         companyId: agent.companyId,
         triggerType: 'manual',
-        issueId,
+        issueId: validIssueId,
         wakeupId: wakeup._id,
         existingRunId: run._id,
       }).catch(err => {
