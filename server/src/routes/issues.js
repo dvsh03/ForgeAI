@@ -2,9 +2,9 @@ const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
 const { Issue, IssueComment, Agent, Goal, Company, User } = require('../models');
-const { acquireLock, releaseLock } = require('../services/issueLockService');
+const { checkoutIssue } = require('../services/issueLockService');
 const { allocateIssueKey } = require('../utils/issueKey');
-const { invokeGemini } = require('../adapters/geminiAdapter');
+const { callGemini } = require('../adapters/geminiAdapter');
 const { enqueueWakeup } = require('../services/wakeupQueue');
 const { authenticateJWT, requireCompanyMember } = require('../middleware/auth');
 
@@ -53,11 +53,8 @@ async function getOrCreateDemoCompany() {
 // ── GET /api/companies/:cid/issues ──────────────────────────
 router.get('/companies/:cid/issues', requireCompanyMember, async (req, res) => {
   try {
-    const { cid } = req.params;
-    const filter = mongoose.Types.ObjectId.isValid(cid)
-      ? { companyId: cid }
-      : {}; // fallback for demo_company_1
-    const issues = await Issue.find(filter).sort({ createdAt: -1 });
+    const companyId = req.company ? req.company._id : req.params.cid;
+    const issues = await Issue.find({ companyId }).sort({ createdAt: -1 });
     res.json(issues);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -70,24 +67,14 @@ router.post('/companies/:cid/issues', requireCompanyMember, async (req, res) => 
     const { cid } = req.params;
     const { title, description, priority, status, assigneeAgentId, goalId, acceptanceCriteria } = req.body;
 
-    let companyId = cid;
+    const companyId = req.company ? req.company._id : (mongoose.Types.ObjectId.isValid(cid) ? cid : (await getOrCreateDemoCompany())._id);
     let keyInfo = { issueNumber: 1, issueKey: `PAP-${Date.now().toString().slice(-4)}` };
 
-    if (mongoose.Types.ObjectId.isValid(cid)) {
-      try {
-        keyInfo = await allocateIssueKey(cid);
-      } catch (e) {
-        // use fallback key
-      }
-    } else {
-      // Find or create default demo company
-      const demoCo = await getOrCreateDemoCompany();
-      companyId = demoCo._id;
-      try {
-        keyInfo = await allocateIssueKey(companyId);
-      } catch (e) {
-        keyInfo = { issueNumber: Math.floor(Math.random() * 1000), issueKey: `FORGE-${Math.floor(Math.random() * 1000)}` };
-      }
+    try {
+      keyInfo = await allocateIssueKey(companyId);
+    } catch (e) {
+      const prefix = req.company?.issuePrefix || 'FORGE';
+      keyInfo = { issueNumber: Math.floor(Math.random() * 1000) + 1, issueKey: `${prefix}-${Math.floor(Math.random() * 1000) + 1}` };
     }
 
     const issue = await Issue.create({
@@ -113,6 +100,7 @@ router.post('/companies/:cid/issues', requireCompanyMember, async (req, res) => 
           agentId: issue.assigneeAgentId,
           triggerType: 'assignment',
           targetIssueId: issue._id,
+          payload: { issueId: issue._id },
         });
       } catch (qErr) {
         // non-blocking
@@ -128,22 +116,18 @@ router.post('/companies/:cid/issues', requireCompanyMember, async (req, res) => 
 // ── GET /api/companies/:cid/goals ───────────────────────────
 router.get('/companies/:cid/goals', requireCompanyMember, async (req, res) => {
   try {
-    const { cid } = req.params;
-    const filter = mongoose.Types.ObjectId.isValid(cid)
-      ? { companyId: cid }
-      : {};
-    let goals = await Goal.find(filter);
+    const companyId = req.company ? req.company._id : req.params.cid;
+    let goals = await Goal.find({ companyId });
 
     if (goals.length === 0) {
-      const company = await getOrCreateDemoCompany();
       const g1 = await Goal.create({
-        companyId: company._id,
+        companyId,
         title: 'Launch Paperclip MERN MVP on Free-Tier Cloud',
         description: 'Deploy control plane with $0 monthly operational budget.',
         status: 'active',
       });
       const g2 = await Goal.create({
-        companyId: company._id,
+        companyId,
         title: 'Autonomous Multi-Agent Heartbeat Loop',
         description: 'Verify 409 atomic lock contention and microcent circuit breakers.',
         status: 'active',
@@ -166,12 +150,32 @@ router.get('/issues/:id', loadIssueAndRequireMember, async (req, res) => {
 router.patch('/issues/:id', loadIssueAndRequireMember, async (req, res) => {
   try {
     const { id } = req.params;
+    const previousAssigneeId = req.issue.assigneeAgentId ? req.issue.assigneeAgentId.toString() : null;
+    const { companyId: _ignoreCompanyId, _id: _ignoreId, issueNumber: _ignoreNum, issueKey: _ignoreKey, ...safeUpdates } = req.body;
     const updated = await Issue.findByIdAndUpdate(
       id,
-      { $set: req.body },
+      { $set: safeUpdates },
       { new: true, runValidators: true }
     );
     if (!updated) return res.status(404).json({ error: 'Issue not found' });
+
+    if (
+      updated.assigneeAgentId &&
+      updated.assigneeAgentId.toString() !== previousAssigneeId
+    ) {
+      try {
+        await enqueueWakeup({
+          companyId: updated.companyId,
+          agentId: updated.assigneeAgentId,
+          triggerType: 'assignment',
+          targetIssueId: updated._id,
+          payload: { issueId: updated._id },
+        });
+      } catch (qErr) {
+        // non-blocking
+      }
+    }
+
     res.json(updated);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -183,9 +187,19 @@ router.post('/issues/:id/checkout', loadIssueAndRequireMember, async (req, res) 
   try {
     const { id } = req.params;
     const runId = req.body.runId || new mongoose.Types.ObjectId();
-    const result = await acquireLock(id, runId);
+    const agentId = req.body.agentId || req.issue.assigneeAgentId || null;
+    const result = await checkoutIssue({
+      companyId: req.issue.companyId,
+      issueId: id,
+      agentId,
+      runId,
+    });
     if (result.conflict) {
-      return res.status(409).json({ error: 'Issue locked by another run', lockedByRunId: result.lockedByRunId });
+      const current = await Issue.findById(id).select('lockedByRunId');
+      return res.status(409).json({
+        error: 'Issue locked by another run',
+        lockedByRunId: current ? current.lockedByRunId : null,
+      });
     }
     res.json({ message: 'Lock acquired', issue: result.issue });
   } catch (err) {
@@ -201,7 +215,7 @@ router.post('/issues/:id/qa-review', loadIssueAndRequireMember, async (req, res)
     const targetStatus = passed ? 'done' : 'todo';
     const updated = await Issue.findByIdAndUpdate(
       id,
-      { $set: { status: targetStatus } },
+      { $set: { status: targetStatus, lockedByRunId: null, lockExpiresAt: null } },
       { new: true }
     );
     if (feedback) {
@@ -279,12 +293,13 @@ router.post('/issues/:id/comments', loadIssueAndRequireMember, async (req, res) 
     if (mentionMatches) {
       for (const mention of mentionMatches) {
         const targetNameOrRole = mention.replace('@', '').toLowerCase();
+        const escapedToken = targetNameOrRole.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         try {
           const targetAgent = await Agent.findOne({
             companyId: issue.companyId,
             $or: [
-              { role: targetNameOrRole },
-              { name: new RegExp(`^${targetNameOrRole}`, 'i') },
+              { role: new RegExp(`^${escapedToken}$`, 'i') },
+              { name: new RegExp(`^${escapedToken}`, 'i') },
             ],
           });
           if (targetAgent) {
@@ -338,12 +353,12 @@ Respond ONLY in valid JSON matching this exact structure:
     const apiKey = process.env.GEMINI_API_KEY;
     if (apiKey) {
       try {
-        const aiResult = await invokeGemini({
+        const aiResult = await callGemini({
           apiKey,
           systemInstruction: 'You are an AI task decomposition engine. Always return valid JSON only.',
           messages: [{ role: 'user', content: prompt }],
           tools: [],
-          model: 'gemini-3.5-flash-lite',
+          model: process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite',
         });
 
         const rawText = aiResult.content.replace(/```json/g, '').replace(/```/g, '').trim();

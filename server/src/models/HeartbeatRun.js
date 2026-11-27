@@ -44,6 +44,11 @@ const heartbeatRunSchema = new mongoose.Schema(
       ref: 'WakeupQueue',
       default: null,
     },
+    triggerType: {
+      type: String,
+      enum: ['manual', 'assignment', 'mention', 'cron', 'schedule', 'approval_resolved', 'dependency_resolved'],
+      default: 'manual',
+    },
     status: {
       type: String,
       enum: ['running', 'completed', 'stalled', 'failed', 'budget_stopped'],
@@ -104,6 +109,10 @@ const heartbeatRunSchema = new mongoose.Schema(
 
 heartbeatRunSchema.virtual('issueId').get(function () {
   return this.targetIssueId;
+});
+
+heartbeatRunSchema.virtual('finishedAt').get(function () {
+  return this.endedAt;
 });
 
 // Indexes

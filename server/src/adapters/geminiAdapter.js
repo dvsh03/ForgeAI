@@ -70,16 +70,18 @@ async function callGemini({
   const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
   const { contents, systemInstruction } = convertToGeminiContents(messages);
-  const geminiTools = convertToGeminiTools(tools);
 
   const requestBody = {
     contents,
-    tools: geminiTools,
     generationConfig: {
       temperature: 0.2,
       maxOutputTokens: 1500
     }
   };
+
+  if (Array.isArray(tools) && tools.length > 0) {
+    requestBody.tools = convertToGeminiTools(tools);
+  }
 
   if (systemInstruction) {
     requestBody.systemInstruction = systemInstruction;

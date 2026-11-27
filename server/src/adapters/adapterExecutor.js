@@ -61,17 +61,19 @@ async function executeAdapter({ agent, messages, onLog = () => {} }) {
   const geminiKey = (await getDecryptedSecret(companyId, 'GEMINI_API_KEY')) || process.env.GEMINI_API_KEY;
 
   // Auto-route to Gemini if Groq key is absent but Gemini key is available
+  const defaultGeminiModel = process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite';
   if (adapterType === 'groq_llm' && !groqKey && geminiKey) {
-    onLog('SYSTEM', 'No GROQ_API_KEY found in vault/env. Auto-routing to Google Gemini (gemini-3.5-flash-lite)...');
+    const selectedGeminiModel = model && model.includes('gemini') ? model : defaultGeminiModel;
+    onLog('SYSTEM', `No GROQ_API_KEY found in vault/env. Auto-routing to Google Gemini (${selectedGeminiModel})...`);
     const result = await callGemini({
       apiKey: geminiKey,
-      model: model && model.includes('gemini') ? model : 'gemini-3.5-flash-lite',
+      model: selectedGeminiModel,
       messages
     });
 
     const costMicrocents = calculateCostMicrocents(
       'gemini_llm',
-      'gemini-3.5-flash-lite',
+      selectedGeminiModel,
       result.usage.inputTokens,
       result.usage.outputTokens
     );
@@ -79,23 +81,25 @@ async function executeAdapter({ agent, messages, onLog = () => {} }) {
     return {
       ...result,
       providerUsed: 'gemini_llm',
+      modelUsed: selectedGeminiModel,
       costMicrocents
     };
   }
 
   // 2. Groq LLM Adapter Execution with Auto 429 Failover
   if (adapterType === 'groq_llm') {
+    const selectedGroqModel = model || 'llama-3.3-70b-versatile';
     try {
-      onLog('SYSTEM', `Invoking Groq LLM (${model || 'llama-3.3-70b-versatile'})...`);
+      onLog('SYSTEM', `Invoking Groq LLM (${selectedGroqModel})...`);
       const result = await callGroq({
         apiKey: groqKey,
-        model: model || 'llama-3.3-70b-versatile',
+        model: selectedGroqModel,
         messages
       });
 
       const costMicrocents = calculateCostMicrocents(
         'groq_llm',
-        model || 'llama-3.3-70b-versatile',
+        selectedGroqModel,
         result.usage.inputTokens,
         result.usage.outputTokens
       );
@@ -103,6 +107,7 @@ async function executeAdapter({ agent, messages, onLog = () => {} }) {
       return {
         ...result,
         providerUsed: 'groq_llm',
+        modelUsed: selectedGroqModel,
         costMicrocents
       };
     } catch (err) {
@@ -111,16 +116,16 @@ async function executeAdapter({ agent, messages, onLog = () => {} }) {
         await new Promise(resolve => setTimeout(resolve, 2000)); // 2-second backoff
 
         if (geminiKey) {
-          onLog('SYSTEM', `Failing over execution to Google Gemini (gemini-3.5-flash-lite)...`);
+          onLog('SYSTEM', `Failing over execution to Google Gemini (${defaultGeminiModel})...`);
           const geminiResult = await callGemini({
             apiKey: geminiKey,
-            model: 'gemini-3.5-flash-lite',
+            model: defaultGeminiModel,
             messages
           });
 
           const costMicrocents = calculateCostMicrocents(
             'gemini_llm',
-            'gemini-3.5-flash-lite',
+            defaultGeminiModel,
             geminiResult.usage.inputTokens,
             geminiResult.usage.outputTokens
           );
@@ -128,6 +133,7 @@ async function executeAdapter({ agent, messages, onLog = () => {} }) {
           return {
             ...geminiResult,
             providerUsed: 'gemini_llm',
+            modelUsed: defaultGeminiModel,
             costMicrocents
           };
         } else {
@@ -141,16 +147,17 @@ async function executeAdapter({ agent, messages, onLog = () => {} }) {
 
   // 3. Gemini LLM Direct Adapter
   if (adapterType === 'gemini_llm') {
-    onLog('SYSTEM', `Invoking Gemini LLM (${model || 'gemini-3.5-flash-lite'})...`);
+    const selectedGeminiModel = model || defaultGeminiModel;
+    onLog('SYSTEM', `Invoking Gemini LLM (${selectedGeminiModel})...`);
     const result = await callGemini({
       apiKey: geminiKey,
-      model: model || 'gemini-3.5-flash-lite',
+      model: selectedGeminiModel,
       messages
     });
 
     const costMicrocents = calculateCostMicrocents(
       'gemini_llm',
-      model || 'gemini-3.5-flash-lite',
+      selectedGeminiModel,
       result.usage.inputTokens,
       result.usage.outputTokens
     );
@@ -158,6 +165,7 @@ async function executeAdapter({ agent, messages, onLog = () => {} }) {
     return {
       ...result,
       providerUsed: 'gemini_llm',
+      modelUsed: selectedGeminiModel,
       costMicrocents
     };
   }

@@ -26,12 +26,12 @@ async function sweepZombieLocks() {
         await HeartbeatRun.findByIdAndUpdate(runId, {
           $set: {
             status: 'stalled',
-            finishedAt: now
+            endedAt: now
           },
           $push: {
             logs: {
               ts: now,
-              level: 'WARN',
+              level: 'warn',
               message: 'Zombie Lock Watchdog: Run exceeded 5-minute lease and was marked stalled.'
             }
           }
@@ -47,11 +47,12 @@ async function sweepZombieLocks() {
         }
       });
 
-      // Reset Agent status to 'idle'
+      // Reset Agent status to 'idle' unless paused, terminated, or budget_stopped
       if (agentId) {
-        await Agent.findByIdAndUpdate(agentId, {
-          $set: { status: 'idle' }
-        });
+        await Agent.updateOne(
+          { _id: agentId, status: { $nin: ['paused', 'terminated', 'budget_stopped'] } },
+          { $set: { status: 'idle' } }
+        );
       }
 
       console.log(`[Watchdog] Successfully reclaimed Issue ${issue.identifier || issue._id} and restored Agent to idle.`);
@@ -67,18 +68,19 @@ async function sweepZombieLocks() {
     for (const run of orphanRuns) {
       console.warn(`[Watchdog] Marking orphan HeartbeatRun ${run._id} as stalled.`);
       run.status = 'stalled';
-      run.finishedAt = now;
+      run.endedAt = now;
       run.logs.push({
         ts: now,
-        level: 'WARN',
+        level: 'warn',
         message: 'Watchdog: Run timed out with no active issue lease.'
       });
       await run.save();
 
       if (run.agentId) {
-        await Agent.findByIdAndUpdate(run.agentId, {
-          $set: { status: 'idle' }
-        });
+        await Agent.updateOne(
+          { _id: run.agentId, status: { $nin: ['paused', 'terminated', 'budget_stopped'] } },
+          { $set: { status: 'idle' } }
+        );
       }
     }
   } catch (err) {
